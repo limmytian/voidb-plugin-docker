@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "byte_limit": {
+      "maximum": 1048576,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "bytes_returned": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "container_id": {
+      "type": "string"
+    },
+    "source_bytes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tail": {
+      "maximum": 5000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "text": {
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "container_id",
+    "text",
+    "bytes_returned",
+    "source_bytes",
+    "truncated",
+    "tail",
+    "byte_limit"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,275 @@
+id = "docker"
+name = "Docker Container Management Plugin"
+version = "0.3.0"
+protocol_version = "1"
+description = "Docker container and runtime management plugin for VoidB."
+license = "Apache-2.0"
+homepage = "https://github.com/limmytian/voidb-plugin-docker"
+
+[runtime]
+command = "voidb-plugin-docker"
+args = ["serve"]
+transport = "stdio-jsonrpc"
+
+[connections]
+profile_schema = "schemas/profile.schema.json"
+secret_classes = ["private_key", "client_certificate"]
+
+[[capabilities]]
+id = "diagnostics"
+description = "Return agent-safe Docker profile diagnostics without opening a daemon connection."
+input_schema = "schemas/diagnostics-input.schema.json"
+output_schema = "schemas/diagnostics-output.schema.json"
+permissions = ["connection.read", "docker.diagnostics"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "list_containers"
+description = "List Docker containers with bounded, cursor-based output."
+input_schema = "schemas/list_containers-input.schema.json"
+output_schema = "schemas/list_containers-output.schema.json"
+permissions = ["connection.read", "docker.containers.list"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "list_images"
+description = "List Docker images with bounded, cursor-based output."
+input_schema = "schemas/list_images-input.schema.json"
+output_schema = "schemas/list_images-output.schema.json"
+permissions = ["connection.read", "docker.images.list"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "list_networks"
+description = "List Docker networks with bounded, cursor-based output."
+input_schema = "schemas/list_networks-input.schema.json"
+output_schema = "schemas/list_networks-output.schema.json"
+permissions = ["connection.read", "docker.networks.list"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "list_volumes"
+description = "List Docker volumes with bounded, cursor-based output."
+input_schema = "schemas/list_volumes-input.schema.json"
+output_schema = "schemas/list_volumes-output.schema.json"
+permissions = ["connection.read", "docker.volumes.list"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "inspect_container"
+description = "Inspect a Docker container and return a redacted summary."
+input_schema = "schemas/inspect_container-input.schema.json"
+output_schema = "schemas/inspect_container-output.schema.json"
+permissions = ["connection.read", "docker.containers.inspect"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "logs"
+description = "Read bounded Docker container logs without following the stream."
+input_schema = "schemas/logs-input.schema.json"
+output_schema = "schemas/logs-output.schema.json"
+permissions = ["connection.read", "docker.containers.logs"]
+risk = "read_only"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "logs_follow"
+description = "Follow Docker container logs with bounded retention and best-effort timestamp resume."
+input_schema = "schemas/logs_follow-input.schema.json"
+output_schema = "schemas/logs_follow-output.schema.json"
+permissions = ["connection.read", "docker.containers.logs"]
+risk = "read_only"
+destructive = false
+streaming = true
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "stats_follow"
+description = "Follow coalesced Docker container resource statistics."
+input_schema = "schemas/stats_follow-input.schema.json"
+output_schema = "schemas/stats_follow-output.schema.json"
+permissions = ["connection.read", "docker.containers.stats"]
+risk = "read_only"
+destructive = false
+streaming = true
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "events_follow"
+description = "Follow filtered Docker daemon events without exposing attribute values."
+input_schema = "schemas/events_follow-input.schema.json"
+output_schema = "schemas/events_follow-output.schema.json"
+permissions = ["connection.read", "docker.events"]
+risk = "read_only"
+destructive = false
+streaming = true
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "exec_read"
+description = "Read output from one explicitly configured Docker exec process."
+input_schema = "schemas/exec_read-input.schema.json"
+output_schema = "schemas/exec_read-output.schema.json"
+permissions = ["connection.read", "docker.containers.exec"]
+risk = "read_only"
+destructive = false
+streaming = true
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "exec_input"
+description = "Write bounded text to one controlled Docker exec process."
+input_schema = "schemas/exec_input-input.schema.json"
+output_schema = "schemas/exec_input-output.schema.json"
+permissions = ["connection.write", "docker.containers.exec"]
+risk = "external_side_effect"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "exec_resize"
+description = "Resize one controlled Docker exec TTY."
+input_schema = "schemas/exec_resize-input.schema.json"
+output_schema = "schemas/exec_resize-output.schema.json"
+permissions = ["connection.write", "docker.containers.exec"]
+risk = "external_side_effect"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "exec_signal"
+description = "Signal one controlled Docker exec process by its daemon-reported PID."
+input_schema = "schemas/exec_signal-input.schema.json"
+output_schema = "schemas/exec_signal-output.schema.json"
+permissions = ["connection.write", "docker.containers.exec"]
+risk = "destructive"
+destructive = true
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "attach_read"
+description = "Read bounded output from an explicit Docker container attach."
+input_schema = "schemas/attach_read-input.schema.json"
+output_schema = "schemas/attach_read-output.schema.json"
+permissions = ["connection.read", "docker.containers.attach"]
+risk = "read_only"
+destructive = false
+streaming = true
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "attach_input"
+description = "Write bounded text to an explicit Docker container attach."
+input_schema = "schemas/attach_input-input.schema.json"
+output_schema = "schemas/attach_input-output.schema.json"
+permissions = ["connection.write", "docker.containers.attach"]
+risk = "external_side_effect"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "attach_resize"
+description = "Resize an explicit Docker container attach TTY."
+input_schema = "schemas/attach_resize-input.schema.json"
+output_schema = "schemas/attach_resize-output.schema.json"
+permissions = ["connection.write", "docker.containers.attach"]
+risk = "external_side_effect"
+destructive = false
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = false
+default_timeout_ms = 30000
+
+[[capabilities]]
+id = "container_action"
+description = "Start, stop, restart, or remove one Docker container."
+input_schema = "schemas/container_action-input.schema.json"
+output_schema = "schemas/container_action-output.schema.json"
+permissions = ["connection.write", "docker.containers.lifecycle"]
+risk = "destructive"
+destructive = true
+streaming = false
+connection_required = true
+required_secret_classes = []
+supports_dry_run = true
+default_timeout_ms = 30000
+
+[ui]
+tui = true
+
+[requirements]
+voidb_core = ">=0.1.0"
+platforms = ["darwin", "linux", "windows"]

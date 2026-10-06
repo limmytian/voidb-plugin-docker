@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "container": {
+      "additionalProperties": false,
+      "properties": {
+        "env_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mount_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "network_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "running": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "image",
+        "status",
+        "running",
+        "exit_code",
+        "env_count",
+        "mount_count",
+        "network_count"
+      ],
+      "type": "object"
+    },
+    "raw_omitted": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "container",
+    "raw_omitted"
+  ],
+  "type": "object"
+}

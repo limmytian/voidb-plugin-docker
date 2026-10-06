@@ -1,0 +1,78 @@
+{
+  "profile_label": "fixture-docker-ops",
+  "endpoint_label": "fixture local daemon",
+  "connection_kind": "local",
+  "containers": [
+    {
+      "id": "a1b2c3d4e5f6",
+      "name": "api",
+      "image": "voidb/api:fixture",
+      "state": "running",
+      "status": "Up 12 minutes",
+      "ports": "127.0.0.1:8080->8080/tcp",
+      "created": "12m ago"
+    },
+    {
+      "id": "f6e5d4c3b2a1",
+      "name": "worker",
+      "image": "voidb/worker:fixture",
+      "state": "exited",
+      "status": "Exited (0) 3 minutes ago",
+      "ports": "",
+      "created": "1h ago"
+    }
+  ],
+  "images": [
+    {
+      "id": "sha256:11112222",
+      "tags": ["voidb/api:fixture"],
+      "size": 145752064,
+      "created": "2h ago"
+    },
+    {
+      "id": "sha256:33334444",
+      "tags": ["redis:7-alpine"],
+      "size": 42065920,
+      "created": "4d ago"
+    }
+  ],
+  "networks": [
+    {
+      "id": "net123456789",
+      "name": "voidb-fixture",
+      "driver": "bridge",
+      "scope": "local"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "voidb-fixture-data",
+      "driver": "local",
+      "mountpoint": "/fixture/host/path/voidb-fixture-data"
+    }
+  ],
+  "logs": [
+    {
+      "is_stderr": false,
+      "text": "2026-07-07T03:14:00Z api listening on 8080"
+    },
+    {
+      "is_stderr": false,
+      "text": "2026-07-07T03:14:02Z health check ok"
+    },
+    {
+      "is_stderr": true,
+      "text": "2026-07-07T03:14:03Z retrying optional cache probe"
+    }
+  ],
+  "stats": {
+    "cpu_percent": 3.4,
+    "mem_usage": 73400320,
+    "mem_limit": 536870912,
+    "mem_percent": 13.7,
+    "net_rx": 8192,
+    "net_tx": 12288
+  },
+  "status": "fixture docker operations ready",
+  "permission_error": "permission denied reading docker socket in fixture"
+}

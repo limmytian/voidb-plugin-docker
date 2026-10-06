@@ -1,0 +1,10 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "all": {
+      "default": true,
+      "type": "boolean"
+    }
+  },
+  "type": "object"
+}

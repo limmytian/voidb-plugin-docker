@@ -1,0 +1,20 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "cols": {
+      "maximum": 500,
+      "minimum": 20,
+      "type": "integer"
+    },
+    "rows": {
+      "maximum": 200,
+      "minimum": 5,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "cols",
+    "rows"
+  ],
+  "type": "object"
+}

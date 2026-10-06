@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "cols": {
+      "type": "integer"
+    },
+    "rows": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "cols",
+    "rows"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "container_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "max_bytes": {
+      "default": 65536,
+      "maximum": 1048576,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "tail": {
+      "default": 100,
+      "maximum": 5000,
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "container_id"
+  ],
+  "type": "object"
+}

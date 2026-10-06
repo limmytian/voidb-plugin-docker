@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "connection_type": {
+      "type": "string"
+    },
+    "network_checked": {
+      "type": "boolean"
+    },
+    "timeout_secs": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "connection_type",
+    "timeout_secs",
+    "network_checked"
+  ],
+  "type": "object"
+}

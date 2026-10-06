@@ -1,0 +1,13 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "written_bytes": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "written_bytes"
+  ],
+  "type": "object"
+}

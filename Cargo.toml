@@ -1,0 +1,35 @@
+[package]
+name = "voidb-plugin-docker"
+version = "0.3.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["limmytian <limmytian@gmail.com>"]
+description = "Standalone VoidB process plugin for Docker container and runtime management"
+repository = "https://github.com/limmytian/voidb-plugin-docker"
+
+[[bin]]
+name = "voidb-plugin-docker"
+path = "src/main.rs"
+
+[dependencies]
+voidb-process-plugin-sdk = { path = "../voidb/crates/voidb-process-plugin-sdk" }
+voidb-core = { path = "../voidb/crates/voidb-core" }
+bollard = "0.18"
+futures-util = "0.3"
+async-trait = "0.1"
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.43", features = ["full"] }
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+ratatui = "0.29"
+crossterm = "0.28"
+
+[dev-dependencies]
+uuid = { version = "1.13", features = ["v4"] }
+
+[[example]]
+name = "export_schemas"
+path = "examples/export_schemas.rs"

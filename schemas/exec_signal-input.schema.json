@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "signal": {
+      "enum": [
+        "INT",
+        "TERM",
+        "KILL"
+      ]
+    }
+  },
+  "required": [
+    "signal"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,14 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "enter": {
+      "default": false,
+      "type": "boolean"
+    },
+    "text": {
+      "maxLength": 16384,
+      "type": "string"
+    }
+  },
+  "type": "object"
+}

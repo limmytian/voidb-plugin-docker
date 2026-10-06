@@ -1,0 +1,4 @@
+interface:
+  display_name: "VoidB Docker Plugin"
+  short_description: "Guide for VoidB Docker work"
+  default_prompt: "Use $voidb-plugin-docker to update the VoidB Docker plugin, capabilities, CLI, or operations TUI."

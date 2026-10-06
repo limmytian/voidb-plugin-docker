@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "connection": {
+      "properties": {
+        "ca_cert": {
+          "description": "Path to CA certificate (PEM)",
+          "type": "string"
+        },
+        "cert": {
+          "description": "Path to client certificate (PEM)",
+          "type": "string"
+        },
+        "key": {
+          "description": "Path to client private key (PEM)",
+          "type": "string"
+        },
+        "path": {
+          "description": "Custom Unix socket path",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "Local",
+            "Socket",
+            "Http",
+            "Tls"
+          ],
+          "type": "string"
+        },
+        "url": {
+          "description": "TCP connection URL, e.g. tcp://192.168.1.100:2376",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "timeout": {
+      "default": 30,
+      "description": "Timeout for Docker API operations in seconds",
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "connection"
+  ],
+  "title": "DockerConnectionProfile",
+  "type": "object"
+}
