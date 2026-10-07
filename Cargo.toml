@@ -12,8 +12,8 @@ name = "voidb-plugin-docker"
 path = "src/main.rs"
 
 [dependencies]
-voidb-process-plugin-sdk = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0-rc.1" }
-voidb-core = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0-rc.1" }
+voidb-process-plugin-sdk = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0" }
+voidb-core = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0" }
 bollard = "0.18"
 futures-util = "0.3"
 async-trait = "0.1"
