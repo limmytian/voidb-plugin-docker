@@ -12,8 +12,8 @@ name = "voidb-plugin-docker"
 path = "src/main.rs"
 
 [dependencies]
-voidb-process-plugin-sdk = { path = "../voidb/crates/voidb-process-plugin-sdk" }
-voidb-core = { path = "../voidb/crates/voidb-core" }
+voidb-process-plugin-sdk = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0-rc.1" }
+voidb-core = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0-rc.1" }
 bollard = "0.18"
 futures-util = "0.3"
 async-trait = "0.1"
@@ -33,3 +33,7 @@ uuid = { version = "1.13", features = ["v4"] }
 [[example]]
 name = "export_schemas"
 path = "examples/export_schemas.rs"
+
+[patch."https://github.com/limmytian/voidb.git"]
+voidb-process-plugin-sdk = { path = "../voidb/crates/voidb-process-plugin-sdk" }
+voidb-core = { path = "../voidb/crates/voidb-core" }
