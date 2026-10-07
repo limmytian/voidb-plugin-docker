@@ -33,7 +33,3 @@ uuid = { version = "1.13", features = ["v4"] }
 [[example]]
 name = "export_schemas"
 path = "examples/export_schemas.rs"
-
-[patch."https://github.com/limmytian/voidb.git"]
-voidb-process-plugin-sdk = { path = "../voidb/crates/voidb-process-plugin-sdk" }
-voidb-core = { path = "../voidb/crates/voidb-core" }
