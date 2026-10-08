@@ -1,6 +1,6 @@
 id = "docker"
 name = "Docker Container Management Plugin"
-version = "0.3.0"
+version = "0.3.3"
 protocol_version = "1"
 description = "Docker container and runtime management plugin for VoidB."
 license = "Apache-2.0"
