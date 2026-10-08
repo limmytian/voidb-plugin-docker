@@ -11,6 +11,7 @@ use voidb_core::plugin::cli::{CliContext, CliPlugin};
 use voidb_core::{ConnectionProfileRef, TuiLaunchRequest, VoidbError, build_tui_launch_plan};
 
 use crate::config::DockerConfig;
+use crate::docker_ops;
 use crate::tui::{
     DockerTuiLaunch, DockerTuiSource, build_docker_tui_evidence, run_docker_tui,
     write_docker_tui_preflight,
@@ -33,7 +34,46 @@ impl CliPlugin for DockerCliPlugin {
     }
 
     fn commands(&self) -> Vec<Command> {
+        let conn_arg = Arg::new("connection")
+            .short('c')
+            .long("connection")
+            .value_name("CONNECTION")
+            .help("Connection name (defaults to local Docker daemon)");
+
+        let profile_arg = Arg::new("profile")
+            .long("profile")
+            .value_name("PROFILE")
+            .conflicts_with("connection")
+            .help("Profile name, id:<id>, or name:<name>");
+
         vec![
+            Command::new("test")
+                .about("Test Docker daemon connectivity and show version")
+                .arg(profile_arg.clone())
+                .arg(conn_arg.clone()),
+            Command::new("ps")
+                .about("List Docker containers")
+                .arg(profile_arg.clone())
+                .arg(conn_arg.clone())
+                .arg(
+                    Arg::new("all")
+                        .short('a')
+                        .long("all")
+                        .action(ArgAction::SetTrue)
+                        .help("Show all containers (default shows just running)"),
+                ),
+            Command::new("images")
+                .about("List Docker images")
+                .arg(profile_arg.clone())
+                .arg(conn_arg.clone()),
+            Command::new("volumes")
+                .about("List Docker volumes")
+                .arg(profile_arg.clone())
+                .arg(conn_arg.clone()),
+            Command::new("networks")
+                .about("List Docker networks")
+                .arg(profile_arg.clone())
+                .arg(conn_arg.clone()),
             Command::new("tui")
                 .about("Launch the standalone Docker operations TUI")
                 .arg(
@@ -97,6 +137,11 @@ impl CliPlugin for DockerCliPlugin {
         ctx: &CliContext,
     ) -> Result<(), VoidbError> {
         match command {
+            "test" => self.handle_test(matches, ctx).await,
+            "ps" => self.handle_ps(matches, ctx).await,
+            "images" => self.handle_images(matches, ctx).await,
+            "volumes" => self.handle_volumes(matches, ctx).await,
+            "networks" => self.handle_networks(matches, ctx).await,
             "tui" => self.handle_tui(matches, ctx).await,
             _ => Err(VoidbError::Plugin(format!(
                 "Unknown docker command: {}",
@@ -107,6 +152,100 @@ impl CliPlugin for DockerCliPlugin {
 }
 
 impl DockerCliPlugin {
+    fn resolve_config(matches: &ArgMatches, ctx: &CliContext) -> Result<DockerConfig, VoidbError> {
+        if let Some(profile_ref) = matches.get_one::<String>("profile") {
+            let (_profile, connection) =
+                ctx.resolve_profile_connection(profile_ref, Some("docker"))?;
+            connection
+                .plugin_config
+                .as_ref()
+                .ok_or_else(|| VoidbError::Connection("Missing plugin_config".to_string()))
+                .and_then(|pc| {
+                    serde_json::from_value(pc.clone()).map_err(|e| {
+                        VoidbError::Connection(format!("Invalid Docker config: {}", e))
+                    })
+                })
+        } else if let Some(conn_name) = matches.get_one::<String>("connection") {
+            Self::parse_config(conn_name, ctx)
+        } else {
+            Ok(DockerConfig::default())
+        }
+    }
+
+    async fn handle_test(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+        let config = Self::resolve_config(matches, ctx)?;
+        let docker = docker_ops::create_client(&config)
+            .map_err(|e| VoidbError::Connection(e.to_string()))?;
+        let version = docker_ops::ping(&docker)
+            .await
+            .map_err(|e| VoidbError::Connection(e.to_string()))?;
+        println!("Connected: {version}");
+        Ok(())
+    }
+
+    async fn handle_ps(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+        let config = Self::resolve_config(matches, ctx)?;
+        let docker = docker_ops::create_client(&config)
+            .map_err(|e| VoidbError::Connection(e.to_string()))?;
+        let all = matches.get_flag("all");
+        let containers = docker_ops::list_containers(&docker, all)
+            .await
+            .map_err(|e| VoidbError::Plugin(e.to_string()))?;
+        println!("{:<14} {:<24} {:<20} {:<12} {:<20}", "CONTAINER ID", "IMAGE", "COMMAND/NAME", "STATE", "STATUS");
+        println!("{}", "-".repeat(94));
+        for c in containers {
+            println!("{:<14} {:<24} {:<20} {:<12} {:<20}", c.id, c.image, c.name, c.state, c.status);
+        }
+        Ok(())
+    }
+
+    async fn handle_images(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+        let config = Self::resolve_config(matches, ctx)?;
+        let docker = docker_ops::create_client(&config)
+            .map_err(|e| VoidbError::Connection(e.to_string()))?;
+        let images = docker_ops::list_images(&docker)
+            .await
+            .map_err(|e| VoidbError::Plugin(e.to_string()))?;
+        println!("{:<14} {:<40} {:<12} {:<20}", "IMAGE ID", "TAG", "SIZE", "CREATED");
+        println!("{}", "-".repeat(88));
+        for img in images {
+            let tag = img.tags.first().cloned().unwrap_or_else(|| "<none>".to_string());
+            let size_mb = format!("{:.1} MB", (img.size as f64) / 1_048_576.0);
+            println!("{:<14} {:<40} {:<12} {:<20}", img.id, tag, size_mb, img.created);
+        }
+        Ok(())
+    }
+
+    async fn handle_volumes(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+        let config = Self::resolve_config(matches, ctx)?;
+        let docker = docker_ops::create_client(&config)
+            .map_err(|e| VoidbError::Connection(e.to_string()))?;
+        let volumes = docker_ops::list_volumes(&docker)
+            .await
+            .map_err(|e| VoidbError::Plugin(e.to_string()))?;
+        println!("{:<12} {:<32} {:<40}", "DRIVER", "VOLUME NAME", "MOUNTPOINT");
+        println!("{}", "-".repeat(86));
+        for v in volumes {
+            println!("{:<12} {:<32} {:<40}", v.driver, v.name, v.mountpoint);
+        }
+        Ok(())
+    }
+
+    async fn handle_networks(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+        let config = Self::resolve_config(matches, ctx)?;
+        let docker = docker_ops::create_client(&config)
+            .map_err(|e| VoidbError::Connection(e.to_string()))?;
+        let networks = docker_ops::list_networks(&docker)
+            .await
+            .map_err(|e| VoidbError::Plugin(e.to_string()))?;
+        println!("{:<14} {:<24} {:<12} {:<12}", "NETWORK ID", "NAME", "DRIVER", "SCOPE");
+        println!("{}", "-".repeat(64));
+        for n in networks {
+            println!("{:<14} {:<24} {:<12} {:<12}", n.id, n.name, n.driver, n.scope);
+        }
+        Ok(())
+    }
+
     fn parse_config(conn_name: &str, ctx: &CliContext) -> Result<DockerConfig, VoidbError> {
         let config = ctx
             .find_connection(conn_name)
