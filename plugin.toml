@@ -11,265 +11,1575 @@ command = "voidb-plugin-docker"
 args = ["serve"]
 transport = "stdio-jsonrpc"
 
+[runtime.env]
+
 [connections]
 profile_schema = "schemas/profile.schema.json"
-secret_classes = ["private_key", "client_certificate"]
+secret_classes = [
+    "private_key",
+    "client_certificate",
+]
 
 [[capabilities]]
 id = "diagnostics"
 description = "Return agent-safe Docker profile diagnostics without opening a daemon connection."
 input_schema = "schemas/diagnostics-input.schema.json"
 output_schema = "schemas/diagnostics-output.schema.json"
-permissions = ["connection.read", "docker.diagnostics"]
+permissions = [
+    "connection.read",
+    "docker.diagnostics",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+capability_wide_allowed = true
 
 [[capabilities]]
 id = "list_containers"
 description = "List Docker containers with bounded, cursor-based output."
 input_schema = "schemas/list_containers-input.schema.json"
 output_schema = "schemas/list_containers-output.schema.json"
-permissions = ["connection.read", "docker.containers.list"]
+permissions = [
+    "connection.read",
+    "docker.containers.list",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+capability_wide_allowed = true
 
 [[capabilities]]
 id = "list_images"
 description = "List Docker images with bounded, cursor-based output."
 input_schema = "schemas/list_images-input.schema.json"
 output_schema = "schemas/list_images-output.schema.json"
-permissions = ["connection.read", "docker.images.list"]
+permissions = [
+    "connection.read",
+    "docker.images.list",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+capability_wide_allowed = true
 
 [[capabilities]]
 id = "list_networks"
 description = "List Docker networks with bounded, cursor-based output."
 input_schema = "schemas/list_networks-input.schema.json"
 output_schema = "schemas/list_networks-output.schema.json"
-permissions = ["connection.read", "docker.networks.list"]
+permissions = [
+    "connection.read",
+    "docker.networks.list",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+capability_wide_allowed = true
 
 [[capabilities]]
 id = "list_volumes"
 description = "List Docker volumes with bounded, cursor-based output."
 input_schema = "schemas/list_volumes-input.schema.json"
 output_schema = "schemas/list_volumes-output.schema.json"
-permissions = ["connection.read", "docker.volumes.list"]
+permissions = [
+    "connection.read",
+    "docker.volumes.list",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+capability_wide_allowed = true
 
 [[capabilities]]
 id = "inspect_container"
 description = "Inspect a Docker container and return a redacted summary."
 input_schema = "schemas/inspect_container-input.schema.json"
 output_schema = "schemas/inspect_container-output.schema.json"
-permissions = ["connection.read", "docker.containers.inspect"]
+permissions = [
+    "connection.read",
+    "docker.containers.inspect",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+note = "Container identity and action are revalidated; exec/attach remain deferred."
+capability_wide_allowed = true
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
 
 [[capabilities]]
 id = "logs"
 description = "Read bounded Docker container logs without following the stream."
 input_schema = "schemas/logs-input.schema.json"
 output_schema = "schemas/logs-output.schema.json"
-permissions = ["connection.read", "docker.containers.logs"]
+permissions = [
+    "connection.read",
+    "docker.containers.logs",
+]
 risk = "read_only"
 destructive = false
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+note = "Container identity and action are revalidated; exec/attach remain deferred."
+capability_wide_allowed = true
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
 
 [[capabilities]]
 id = "logs_follow"
 description = "Follow Docker container logs with bounded retention and best-effort timestamp resume."
 input_schema = "schemas/logs_follow-input.schema.json"
 output_schema = "schemas/logs_follow-output.schema.json"
-permissions = ["connection.read", "docker.containers.logs"]
+permissions = [
+    "connection.read",
+    "docker.containers.logs",
+]
 risk = "read_only"
 destructive = false
 streaming = true
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "log_stream"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[capabilities.session_handoff]
+capabilities = ["docker.logs_follow"]
+
+[capabilities.session_handoff.purpose]
+kind = "log_stream"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "read_only"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "log"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tail]
+default = 100
+maximum = 5000
+minimum = 1
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.timestamps]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.logs_follow"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 2000
+max_bytes = 2097152
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "transient"
+max_attempts = 8
+initial_backoff_ms = 250
+max_backoff_ms = 10000
+resume = "best_effort_cursor"
+cursor_kind = "timestamp"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "stop_observation"
 
 [[capabilities]]
 id = "stats_follow"
 description = "Follow coalesced Docker container resource statistics."
 input_schema = "schemas/stats_follow-input.schema.json"
 output_schema = "schemas/stats_follow-output.schema.json"
-permissions = ["connection.read", "docker.containers.stats"]
+permissions = [
+    "connection.read",
+    "docker.containers.stats",
+]
 risk = "read_only"
 destructive = false
 streaming = true
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "watch_stream"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[capabilities.session_handoff]
+capabilities = ["docker.stats_follow"]
+
+[capabilities.session_handoff.purpose]
+kind = "watch_stream"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "read_only"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "metrics"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+type = "object"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.stats_follow"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 64
+max_bytes = 524288
+overflow = "coalesce"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "transient"
+max_attempts = 8
+initial_backoff_ms = 250
+max_backoff_ms = 10000
+resume = "restart"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "stop_observation"
 
 [[capabilities]]
 id = "events_follow"
 description = "Follow filtered Docker daemon events without exposing attribute values."
 input_schema = "schemas/events_follow-input.schema.json"
 output_schema = "schemas/events_follow-output.schema.json"
-permissions = ["connection.read", "docker.events"]
+permissions = [
+    "connection.read",
+    "docker.events",
+]
 risk = "read_only"
 destructive = false
 streaming = true
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "watch_stream"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/parameters/filters"
+label = "Event filters"
+value_type = "json"
+required = false
+constraint = "subset"
+risk_emphasis = "normal"
+
+[capabilities.session_handoff]
+capabilities = ["docker.events_follow"]
+
+[capabilities.session_handoff.purpose]
+kind = "watch_stream"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "read_only"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "events"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_daemon"
+identity_fields = ["/scope"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["scope"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.scope]
+const = "daemon"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.filters]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.filters.additionalProperties]
+maxItems = 64
+type = "array"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.filters.additionalProperties.items]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.events_follow"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 2000
+max_bytes = 2097152
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "transient"
+max_attempts = 8
+initial_backoff_ms = 250
+max_backoff_ms = 10000
+resume = "best_effort_cursor"
+cursor_kind = "timestamp"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "stop_observation"
 
 [[capabilities]]
 id = "exec_read"
 description = "Read output from one explicitly configured Docker exec process."
 input_schema = "schemas/exec_read-input.schema.json"
 output_schema = "schemas/exec_read-output.schema.json"
-permissions = ["connection.read", "docker.containers.exec"]
+permissions = [
+    "connection.read",
+    "docker.containers.exec",
+]
 risk = "read_only"
 destructive = false
 streaming = true
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/parameters/command"
+label = "Exec command"
+value_type = "command_argv"
+required = true
+constraint = "exact"
+risk_emphasis = "privilege_escalation"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.exec_read",
+    "docker.exec_input",
+    "docker.exec_resize",
+    "docker.exec_signal",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "exec"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = ["command"]
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command]
+maxItems = 64
+minItems = 1
+type = "array"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command.items]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.user]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.working_dir]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.exec_read"
+input = "docker.exec_input"
+resize = "docker.exec_resize"
+signal = "docker.exec_signal"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "terminate_remote"
 
 [[capabilities]]
 id = "exec_input"
 description = "Write bounded text to one controlled Docker exec process."
 input_schema = "schemas/exec_input-input.schema.json"
 output_schema = "schemas/exec_input-output.schema.json"
-permissions = ["connection.write", "docker.containers.exec"]
+permissions = [
+    "connection.write",
+    "docker.containers.exec",
+]
 risk = "external_side_effect"
 destructive = false
 streaming = false
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/parameters/command"
+label = "Exec command"
+value_type = "command_argv"
+required = true
+constraint = "exact"
+risk_emphasis = "privilege_escalation"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.exec_read",
+    "docker.exec_input",
+    "docker.exec_resize",
+    "docker.exec_signal",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "exec"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = ["command"]
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command]
+maxItems = 64
+minItems = 1
+type = "array"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command.items]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.user]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.working_dir]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.exec_read"
+input = "docker.exec_input"
+resize = "docker.exec_resize"
+signal = "docker.exec_signal"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "terminate_remote"
 
 [[capabilities]]
 id = "exec_resize"
 description = "Resize one controlled Docker exec TTY."
 input_schema = "schemas/exec_resize-input.schema.json"
 output_schema = "schemas/exec_resize-output.schema.json"
-permissions = ["connection.write", "docker.containers.exec"]
+permissions = [
+    "connection.write",
+    "docker.containers.exec",
+]
 risk = "external_side_effect"
 destructive = false
 streaming = false
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/parameters/command"
+label = "Exec command"
+value_type = "command_argv"
+required = true
+constraint = "exact"
+risk_emphasis = "privilege_escalation"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.exec_read",
+    "docker.exec_input",
+    "docker.exec_resize",
+    "docker.exec_signal",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "exec"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = ["command"]
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command]
+maxItems = 64
+minItems = 1
+type = "array"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command.items]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.user]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.working_dir]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.exec_read"
+input = "docker.exec_input"
+resize = "docker.exec_resize"
+signal = "docker.exec_signal"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "terminate_remote"
 
 [[capabilities]]
 id = "exec_signal"
 description = "Signal one controlled Docker exec process by its daemon-reported PID."
 input_schema = "schemas/exec_signal-input.schema.json"
 output_schema = "schemas/exec_signal-output.schema.json"
-permissions = ["connection.write", "docker.containers.exec"]
+permissions = [
+    "connection.write",
+    "docker.containers.exec",
+]
 risk = "destructive"
 destructive = true
 streaming = false
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/parameters/command"
+label = "Exec command"
+value_type = "command_argv"
+required = true
+constraint = "exact"
+risk_emphasis = "privilege_escalation"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.exec_read",
+    "docker.exec_input",
+    "docker.exec_resize",
+    "docker.exec_signal",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "exec"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = ["command"]
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command]
+maxItems = 64
+minItems = 1
+type = "array"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.command.items]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.user]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.working_dir]
+maxLength = 4096
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.exec_read"
+input = "docker.exec_input"
+resize = "docker.exec_resize"
+signal = "docker.exec_signal"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "terminate_remote"
 
 [[capabilities]]
 id = "attach_read"
 description = "Read bounded output from an explicit Docker container attach."
 input_schema = "schemas/attach_read-input.schema.json"
 output_schema = "schemas/attach_read-output.schema.json"
-permissions = ["connection.read", "docker.containers.attach"]
+permissions = [
+    "connection.read",
+    "docker.containers.attach",
+]
 risk = "read_only"
 destructive = false
 streaming = true
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.attach_read",
+    "docker.attach_input",
+    "docker.attach_resize",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "attach"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = []
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.logs]
+default = false
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.attach_read"
+input = "docker.attach_input"
+resize = "docker.attach_resize"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "detach_remote"
 
 [[capabilities]]
 id = "attach_input"
 description = "Write bounded text to an explicit Docker container attach."
 input_schema = "schemas/attach_input-input.schema.json"
 output_schema = "schemas/attach_input-output.schema.json"
-permissions = ["connection.write", "docker.containers.attach"]
+permissions = [
+    "connection.write",
+    "docker.containers.attach",
+]
 risk = "external_side_effect"
 destructive = false
 streaming = false
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.attach_read",
+    "docker.attach_input",
+    "docker.attach_resize",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "attach"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = []
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.logs]
+default = false
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.attach_read"
+input = "docker.attach_input"
+resize = "docker.attach_resize"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "detach_remote"
 
 [[capabilities]]
 id = "attach_resize"
 description = "Resize an explicit Docker container attach TTY."
 input_schema = "schemas/attach_resize-input.schema.json"
 output_schema = "schemas/attach_resize-output.schema.json"
-permissions = ["connection.write", "docker.containers.attach"]
+permissions = [
+    "connection.write",
+    "docker.containers.attach",
+]
 risk = "external_side_effect"
 destructive = false
 streaming = false
+execution_mode = "session_only"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = false
 default_timeout_ms = 30000
+
+[capabilities.authorization]
+declared = true
+interactive_execute = true
+note = "Docker container, command, and daemon filter scope are revalidated at session open."
+capability_wide_allowed = true
+
+[[capabilities.authorization.session_purposes]]
+kind = "interactive_terminal"
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/resource/container_id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[capabilities.session_handoff]
+capabilities = [
+    "docker.attach_read",
+    "docker.attach_input",
+    "docker.attach_resize",
+]
+
+[capabilities.session_handoff.purpose]
+kind = "interactive_terminal"
+
+[capabilities.session_handoff.live_session]
+protocol_version = 1
+start_risk = "external_side_effect"
+
+[capabilities.session_handoff.live_session.kind]
+kind = "attach"
+
+[capabilities.session_handoff.live_session.resource]
+resource_type = "docker_container"
+identity_fields = ["/container_id"]
+audit_identity = "fingerprint"
+
+[capabilities.session_handoff.live_session.resource.identity_schema]
+additionalProperties = false
+required = ["container_id"]
+type = "object"
+
+[capabilities.session_handoff.live_session.resource.identity_schema.properties.container_id]
+maxLength = 256
+minLength = 1
+type = "string"
+
+[capabilities.session_handoff.live_session.start_parameters_schema]
+additionalProperties = false
+required = []
+type = "object"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.cols]
+default = 120
+maximum = 500
+minimum = 20
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.logs]
+default = false
+type = "boolean"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.rows]
+default = 40
+maximum = 200
+minimum = 5
+type = "integer"
+
+[capabilities.session_handoff.live_session.start_parameters_schema.properties.tty]
+default = true
+type = "boolean"
+
+[capabilities.session_handoff.live_session.event_schema]
+maxProperties = 16
+type = "object"
+
+[capabilities.session_handoff.live_session.operations]
+events = "docker.attach_read"
+input = "docker.attach_input"
+resize = "docker.attach_resize"
+
+[capabilities.session_handoff.live_session.buffer]
+max_events = 1000
+max_bytes = 1048576
+overflow = "drop_oldest"
+
+[capabilities.session_handoff.live_session.reconnect]
+mode = "never"
+max_attempts = 0
+initial_backoff_ms = 0
+max_backoff_ms = 0
+resume = "unsupported"
+
+[capabilities.session_handoff.live_session.delivery]
+backpressure = "bounded_buffer"
+cursor_scope = "optional"
+max_read_wait_ms = 30000
+
+[capabilities.session_handoff.live_session.delivery.heartbeat]
+
+[capabilities.session_handoff.live_session.control]
+cancel = "call_only"
+close = "detach_remote"
 
 [[capabilities]]
 id = "container_action"
 description = "Start, stop, restart, or remove one Docker container."
 input_schema = "schemas/container_action-input.schema.json"
 output_schema = "schemas/container_action-output.schema.json"
-permissions = ["connection.write", "docker.containers.lifecycle"]
+permissions = [
+    "connection.write",
+    "docker.containers.lifecycle",
+]
 risk = "destructive"
 destructive = true
 streaming = false
+execution_mode = "stateless"
 connection_required = true
 required_secret_classes = []
 supports_dry_run = true
 default_timeout_ms = 30000
 
+[capabilities.authorization]
+declared = true
+interactive_execute = false
+session_purposes = []
+note = "Container identity and action are revalidated; exec/attach remain deferred."
+capability_wide_allowed = true
+
+[capabilities.authorization.approval_schema]
+version = 1
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/id"
+label = "Container"
+value_type = "resource_id"
+required = true
+constraint = "exact"
+risk_emphasis = "normal"
+
+[[capabilities.authorization.approval_schema.fields]]
+path = "/action"
+label = "Container action"
+value_type = "string"
+required = true
+constraint = "exact"
+risk_emphasis = "destructive"
+
 [ui]
 tui = true
+raw_input = false
 
 [requirements]
 voidb_core = ">=0.1.0"
-platforms = ["darwin", "linux", "windows"]
+platforms = [
+    "darwin",
+    "linux",
+    "windows",
+]

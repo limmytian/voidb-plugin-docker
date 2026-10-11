@@ -12,8 +12,8 @@ name = "voidb-plugin-docker"
 path = "src/main.rs"
 
 [dependencies]
-voidb-process-plugin-sdk = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0" }
-voidb-core = { git = "https://github.com/limmytian/voidb.git", tag = "v0.3.0" }
+voidb-process-plugin-sdk = { git = "https://github.com/limmytian/voidb.git", rev = "0d565c4a7227f218c2b9c118aa2694d87243aa8f" }
+voidb-core = { git = "https://github.com/limmytian/voidb.git", rev = "0d565c4a7227f218c2b9c118aa2694d87243aa8f" }
 bollard = "0.18"
 futures-util = "0.3"
 async-trait = "0.1"
@@ -29,6 +29,7 @@ crossterm = "0.28"
 rpassword = "7"
 
 [dev-dependencies]
+toml = "0.8"
 uuid = { version = "1.13", features = ["v4"] }
 
 [[example]]
