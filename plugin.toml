@@ -1577,7 +1577,7 @@ tui = true
 raw_input = false
 
 [requirements]
-voidb_core = ">=0.1.0"
+voidb_core = ">=0.3.3"
 platforms = [
     "darwin",
     "linux",
