@@ -4,3 +4,7 @@ bin/
 .cargo/
 
 dist/
+
+# Python script caches
+__pycache__/
+*.py[cod]
