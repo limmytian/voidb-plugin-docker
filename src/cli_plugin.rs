@@ -210,39 +210,66 @@ impl DockerCliPlugin {
         let containers = docker_ops::list_containers(&docker, all)
             .await
             .map_err(|e| VoidbError::Plugin(e.to_string()))?;
-        println!("{:<14} {:<24} {:<20} {:<12} {:<20}", "CONTAINER ID", "IMAGE", "COMMAND/NAME", "STATE", "STATUS");
+        println!(
+            "{:<14} {:<24} {:<20} {:<12} {:<20}",
+            "CONTAINER ID", "IMAGE", "COMMAND/NAME", "STATE", "STATUS"
+        );
         println!("{}", "-".repeat(94));
         for c in containers {
-            println!("{:<14} {:<24} {:<20} {:<12} {:<20}", c.id, c.image, c.name, c.state, c.status);
+            println!(
+                "{:<14} {:<24} {:<20} {:<12} {:<20}",
+                c.id, c.image, c.name, c.state, c.status
+            );
         }
         Ok(())
     }
 
-    async fn handle_images(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+    async fn handle_images(
+        &self,
+        matches: &ArgMatches,
+        ctx: &CliContext,
+    ) -> Result<(), VoidbError> {
         let config = Self::resolve_config(matches, ctx)?;
         let docker = docker_ops::create_client(&config)
             .map_err(|e| VoidbError::Connection(e.to_string()))?;
         let images = docker_ops::list_images(&docker)
             .await
             .map_err(|e| VoidbError::Plugin(e.to_string()))?;
-        println!("{:<14} {:<40} {:<12} {:<20}", "IMAGE ID", "TAG", "SIZE", "CREATED");
+        println!(
+            "{:<14} {:<40} {:<12} {:<20}",
+            "IMAGE ID", "TAG", "SIZE", "CREATED"
+        );
         println!("{}", "-".repeat(88));
         for img in images {
-            let tag = img.tags.first().cloned().unwrap_or_else(|| "<none>".to_string());
+            let tag = img
+                .tags
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "<none>".to_string());
             let size_mb = format!("{:.1} MB", (img.size as f64) / 1_048_576.0);
-            println!("{:<14} {:<40} {:<12} {:<20}", img.id, tag, size_mb, img.created);
+            println!(
+                "{:<14} {:<40} {:<12} {:<20}",
+                img.id, tag, size_mb, img.created
+            );
         }
         Ok(())
     }
 
-    async fn handle_volumes(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+    async fn handle_volumes(
+        &self,
+        matches: &ArgMatches,
+        ctx: &CliContext,
+    ) -> Result<(), VoidbError> {
         let config = Self::resolve_config(matches, ctx)?;
         let docker = docker_ops::create_client(&config)
             .map_err(|e| VoidbError::Connection(e.to_string()))?;
         let volumes = docker_ops::list_volumes(&docker)
             .await
             .map_err(|e| VoidbError::Plugin(e.to_string()))?;
-        println!("{:<12} {:<32} {:<40}", "DRIVER", "VOLUME NAME", "MOUNTPOINT");
+        println!(
+            "{:<12} {:<32} {:<40}",
+            "DRIVER", "VOLUME NAME", "MOUNTPOINT"
+        );
         println!("{}", "-".repeat(86));
         for v in volumes {
             println!("{:<12} {:<32} {:<40}", v.driver, v.name, v.mountpoint);
@@ -250,17 +277,27 @@ impl DockerCliPlugin {
         Ok(())
     }
 
-    async fn handle_networks(&self, matches: &ArgMatches, ctx: &CliContext) -> Result<(), VoidbError> {
+    async fn handle_networks(
+        &self,
+        matches: &ArgMatches,
+        ctx: &CliContext,
+    ) -> Result<(), VoidbError> {
         let config = Self::resolve_config(matches, ctx)?;
         let docker = docker_ops::create_client(&config)
             .map_err(|e| VoidbError::Connection(e.to_string()))?;
         let networks = docker_ops::list_networks(&docker)
             .await
             .map_err(|e| VoidbError::Plugin(e.to_string()))?;
-        println!("{:<14} {:<24} {:<12} {:<12}", "NETWORK ID", "NAME", "DRIVER", "SCOPE");
+        println!(
+            "{:<14} {:<24} {:<12} {:<12}",
+            "NETWORK ID", "NAME", "DRIVER", "SCOPE"
+        );
         println!("{}", "-".repeat(64));
         for n in networks {
-            println!("{:<14} {:<24} {:<12} {:<12}", n.id, n.name, n.driver, n.scope);
+            println!(
+                "{:<14} {:<24} {:<12} {:<12}",
+                n.id, n.name, n.driver, n.scope
+            );
         }
         Ok(())
     }

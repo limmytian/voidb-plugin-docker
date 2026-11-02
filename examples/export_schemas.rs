@@ -13,8 +13,14 @@ fn main() -> anyhow::Result<()> {
         let input_path = schemas_dir.join(format!("{}-input.schema.json", cap.id));
         let output_path = schemas_dir.join(format!("{}-output.schema.json", cap.id));
 
-        fs::write(&input_path, serde_json::to_string_pretty(&cap.input_schema)? + "\n")?;
-        fs::write(&output_path, serde_json::to_string_pretty(&cap.output_schema)? + "\n")?;
+        fs::write(
+            &input_path,
+            serde_json::to_string_pretty(&cap.input_schema)? + "\n",
+        )?;
+        fs::write(
+            &output_path,
+            serde_json::to_string_pretty(&cap.output_schema)? + "\n",
+        )?;
         println!("Exported schemas for capability: {}", cap.id);
     }
 
@@ -66,7 +72,10 @@ fn main() -> anyhow::Result<()> {
     });
 
     let profile_path = schemas_dir.join("profile.schema.json");
-    fs::write(&profile_path, serde_json::to_string_pretty(&profile_schema)? + "\n")?;
+    fs::write(
+        &profile_path,
+        serde_json::to_string_pretty(&profile_schema)? + "\n",
+    )?;
     println!("Exported profile schema to {}", profile_path.display());
 
     Ok(())
