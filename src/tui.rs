@@ -31,10 +31,14 @@ use crate::config::{DockerConfig, DockerConnection};
 use crate::service::{DockerCommand, DockerEvent, DockerService, ExecEvent};
 use crate::types::{ContainerInfo, ContainerStats, ImageInfo, NetworkInfo, VolumeInfo};
 
+const BROWSER_HINTS: &str = "1-4 kind j/k / filter i inspect l logs t stats p start s stop R restart x del e exec c cancel r refresh a share ? q quit";
 const LOG_LINE_LIMIT: usize = 2_000;
 const LOG_BYTE_LIMIT: usize = 2 * 1024 * 1024;
 const EXEC_LINE_LIMIT: usize = 1_000;
 const EXEC_BYTE_LIMIT: usize = 1024 * 1024;
+const INSPECT_LINE_LIMIT: usize = 200;
+const INSPECT_BYTE_LIMIT: usize = 128 * 1024;
+const PAGE_STEP: isize = 10;
 const OPERATION_SYNC_INTERVAL: Duration = Duration::from_millis(250);
 pub const DOCKER_AGENT_CONTEXT_STORE_DIR_ENV: &str = "VOIDB_DOCKER_AGENT_CONTEXT_DIR";
 #[doc(hidden)]
@@ -331,9 +335,19 @@ enum ResourceKind {
 enum Mode {
     Browser,
     Filter,
-    Help,
-    Error,
     Exec,
+}
+
+/// Full-screen or popup surfaces stacked on top of the browser. Input is
+/// routed to the active overlay first, so each surface owns its key space
+/// instead of overloading browser keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Overlay {
+    None,
+    Help,
+    LogViewer,
+    InspectViewer,
+    ConfirmQuit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -518,12 +532,22 @@ pub fn build_docker_tui_evidence(launch: &DockerTuiLaunch) -> Result<Value> {
             "startup",
             "container_browse",
             "image_network_volume_browse",
+            "kind_hotkeys",
+            "per_kind_selection",
+            "page_keys",
+            "key_hint_footer",
+            "help_overlay",
+            "non_modal_error_banner",
+            "loading_markers",
             "metadata_preview",
+            "inspect_viewer",
             "filter",
             "log_stream_bounds",
+            "log_viewer_scrollback",
             "stats_preview",
             "lifecycle_plan",
             "destructive_double_confirmation",
+            "quit_confirmation",
             "readonly_block",
             "exec_escape_prompt",
             "context_share_snapshot",
@@ -643,7 +667,8 @@ fn preflight_value(launch: &DockerTuiLaunch) -> Value {
         },
         "stream_bounds": {
             "logs": { "max_lines": LOG_LINE_LIMIT, "max_bytes": LOG_BYTE_LIMIT },
-            "exec": { "max_lines": EXEC_LINE_LIMIT, "max_bytes": EXEC_BYTE_LIMIT }
+            "exec": { "max_lines": EXEC_LINE_LIMIT, "max_bytes": EXEC_BYTE_LIMIT },
+            "inspect": { "max_lines": INSPECT_LINE_LIMIT, "max_bytes": INSPECT_BYTE_LIMIT }
         },
         "service_boundary": "DockerService::Channel",
         "modes": [
@@ -653,11 +678,12 @@ fn preflight_value(launch: &DockerTuiLaunch) -> Value {
             "volumes",
             "details",
             "filter",
-            "logs",
-            "stats",
+            "log_viewer",
+            "inspect_viewer",
             "operation_plan",
             "exec_escape_prompt",
-            "permission_error"
+            "permission_error",
+            "quit_confirmation"
         ],
         "launch_plan": launch_plan
     })
@@ -764,13 +790,20 @@ struct DockerTuiApp {
     images: Vec<ImageView>,
     networks: Vec<NetworkView>,
     volumes: Vec<VolumeView>,
-    selected: usize,
+    selections: [usize; ResourceKind::COUNT],
     filter: String,
+    overlay: Overlay,
+    error_banner: Option<String>,
+    pending: [bool; ResourceKind::COUNT],
     service: Option<DockerService>,
     operation_plan: Option<OperationPlanView>,
     status: String,
     mode: Mode,
-    return_mode: Mode,
+    log_follow: bool,
+    log_scroll: usize,
+    inspect_preview: BoundedLines,
+    inspect_scroll: usize,
+    inspect_target: Option<String>,
     logs: BoundedLines,
     exec_output: BoundedLines,
     stats: Option<StatsView>,
@@ -842,13 +875,20 @@ impl DockerTuiApp {
             images: data.images,
             networks: data.networks,
             volumes: data.volumes,
-            selected: 0,
+            selections: [0; ResourceKind::COUNT],
             filter: String::new(),
+            overlay: Overlay::None,
+            error_banner: None,
+            pending: [false; ResourceKind::COUNT],
             service,
             operation_plan: None,
             status,
             mode: Mode::Browser,
-            return_mode: Mode::Browser,
+            log_follow: true,
+            log_scroll: 0,
+            inspect_preview: BoundedLines::new(INSPECT_LINE_LIMIT, INSPECT_BYTE_LIMIT),
+            inspect_scroll: 0,
+            inspect_target: None,
             logs,
             exec_output: BoundedLines::new(EXEC_LINE_LIMIT, EXEC_BYTE_LIMIT),
             stats: data.stats,
@@ -927,41 +967,44 @@ impl DockerTuiApp {
     fn handle_service_event(&mut self, event: DockerEvent) {
         match event {
             DockerEvent::ContainersLoaded(containers) => {
+                self.pending[ResourceKind::Containers.index()] = false;
                 self.containers = containers.into_iter().map(ContainerView::from).collect();
                 self.containers.sort_by(container_sort);
-                self.selected = self
-                    .selected
-                    .min(self.filtered_items().len().saturating_sub(1));
+                self.trim_selection();
                 self.status = format!("listed {} containers", self.containers.len());
             }
             DockerEvent::ImagesLoaded(images) => {
+                self.pending[ResourceKind::Images.index()] = false;
                 self.images = images.into_iter().map(ImageView::from).collect();
                 self.images.sort_by(image_sort);
-                self.selected = self
-                    .selected
-                    .min(self.filtered_items().len().saturating_sub(1));
+                self.trim_selection();
                 self.status = format!("listed {} images", self.images.len());
             }
             DockerEvent::NetworksLoaded(networks) => {
+                self.pending[ResourceKind::Networks.index()] = false;
                 self.networks = networks.into_iter().map(NetworkView::from).collect();
                 self.networks
                     .sort_by(|left, right| left.name.cmp(&right.name));
-                self.selected = self
-                    .selected
-                    .min(self.filtered_items().len().saturating_sub(1));
+                self.trim_selection();
                 self.status = format!("listed {} networks", self.networks.len());
             }
             DockerEvent::VolumesLoaded(volumes) => {
+                self.pending[ResourceKind::Volumes.index()] = false;
                 self.volumes = volumes.into_iter().map(VolumeView::from).collect();
                 self.volumes
                     .sort_by(|left, right| left.name.cmp(&right.name));
-                self.selected = self
-                    .selected
-                    .min(self.filtered_items().len().saturating_sub(1));
+                self.trim_selection();
                 self.status = format!("listed {} volumes", self.volumes.len());
             }
-            DockerEvent::InspectLoaded(_) => {
-                self.status = "inspect data loaded; raw env and mounts stay redacted".to_string();
+            DockerEvent::InspectLoaded(inspect) => {
+                self.inspect_preview.clear();
+                for line in inspect_preview_lines(&inspect) {
+                    self.inspect_preview.push_line(line);
+                }
+                self.inspect_scroll = 0;
+                self.overlay = Overlay::InspectViewer;
+                self.status =
+                    "container inspect loaded; raw env and mounts stay redacted".to_string();
             }
             DockerEvent::StatsUpdate(stats) => {
                 self.stats = Some(StatsView::from(stats));
@@ -999,8 +1042,11 @@ impl DockerTuiApp {
                 }
             }
             DockerEvent::Error(message) => {
-                self.mode = Mode::Error;
-                self.status = safe_error_summary(&message);
+                // Background and request failures surface as a non-modal
+                // banner so a failing stream or refresh never hijacks the
+                // browser.
+                self.error_banner = Some(message);
+                self.status = safe_error_summary(self.error_banner.as_deref().unwrap_or(""));
             }
         }
     }
@@ -1028,15 +1074,29 @@ impl DockerTuiApp {
             self.handle_exec_key(key);
             return;
         }
-        if self.mode == Mode::Help {
-            self.mode = self.return_mode;
-            self.status = format!("returned to {}", mode_label(self.mode));
-            return;
-        }
-        if self.mode == Mode::Error {
-            self.mode = Mode::Browser;
-            self.status = "returned to docker browser".to_string();
-            return;
+        // The error banner is informational: any key acknowledges it while
+        // the key itself keeps its normal meaning, so background failures
+        // never trap the operator in a modal.
+        self.error_banner = None;
+        match self.overlay {
+            Overlay::None => {}
+            Overlay::Help => {
+                self.overlay = Overlay::None;
+                self.status = "help closed".to_string();
+                return;
+            }
+            Overlay::LogViewer => {
+                self.handle_log_viewer_key(key);
+                return;
+            }
+            Overlay::InspectViewer => {
+                self.handle_inspect_viewer_key(key);
+                return;
+            }
+            Overlay::ConfirmQuit => {
+                self.handle_confirm_quit_key(key);
+                return;
+            }
         }
         if self.mode == Mode::Filter {
             self.handle_filter_key(key);
@@ -1044,20 +1104,22 @@ impl DockerTuiApp {
         }
 
         match key.code {
-            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Char('q') => self.request_quit(),
             KeyCode::Tab => self.next_resource(),
             KeyCode::BackTab => self.previous_resource(),
             KeyCode::Up | KeyCode::Char('k') => self.move_selection(-1),
             KeyCode::Down | KeyCode::Char('j') => self.move_selection(1),
-            KeyCode::Home | KeyCode::Char('g') => self.selected = 0,
+            KeyCode::PageUp => self.move_selection(-PAGE_STEP),
+            KeyCode::PageDown => self.move_selection(PAGE_STEP),
+            KeyCode::Home | KeyCode::Char('g') => self.set_selected(0),
             KeyCode::End | KeyCode::Char('G') => {
-                self.selected = self.filtered_items().len().saturating_sub(1);
+                let len = self.filtered_items().len();
+                self.set_selected(len.saturating_sub(1));
             }
             KeyCode::Enter | KeyCode::Char('i') => self.inspect_selected(),
             KeyCode::Char('/') => {
-                self.return_mode = self.mode;
                 self.mode = Mode::Filter;
-                self.status = "filter: type text, Enter apply, Esc clear".to_string();
+                self.status = "filter: type to narrow live, Enter apply, Esc clear".to_string();
             }
             KeyCode::Char('r') => self.refresh_current(),
             KeyCode::Char('p') => self.plan_container_action(OperationKind::StartContainer),
@@ -1082,10 +1144,12 @@ impl DockerTuiApp {
             KeyCode::Char('y') => self.confirm_plan(),
             KeyCode::Esc => self.cancel_plan(),
             KeyCode::Char('?') => self.show_help(),
+            KeyCode::Char(digit @ '1'..='4') => {
+                let index = digit.to_digit(10).unwrap_or(1) as usize - 1;
+                self.set_active_kind(ResourceKind::ALL[index]);
+            }
             _ => {
-                self.status =
-                    "docker: Tab resources, j/k move, i inspect, l logs, t stats, a share context, y/n review agent operation, p/s/R/x/e plan, q quit"
-                        .to_string();
+                self.status = format!("docker: {}", BROWSER_HINTS);
             }
         }
     }
@@ -1093,23 +1157,27 @@ impl DockerTuiApp {
     fn handle_filter_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Enter => {
-                self.mode = self.return_mode;
-                self.selected = 0;
-                self.status = format!("filter applied: {}", self.filter_label());
+                self.mode = Mode::Browser;
+                self.set_selected(0);
+                self.status = format!(
+                    "filter applied: {} ({} matches)",
+                    self.filter_label(),
+                    self.filtered_items().len()
+                );
             }
             KeyCode::Esc => {
                 self.filter.clear();
-                self.mode = self.return_mode;
-                self.selected = 0;
+                self.mode = Mode::Browser;
+                self.set_selected(0);
                 self.status = "filter cleared".to_string();
             }
             KeyCode::Backspace => {
                 self.filter.pop();
-                self.selected = 0;
+                self.set_selected(0);
             }
             KeyCode::Char(ch) => {
                 self.filter.push(ch);
-                self.selected = 0;
+                self.set_selected(0);
             }
             _ => {}
         }
@@ -1148,14 +1216,38 @@ impl DockerTuiApp {
         }
     }
 
+    fn selected(&self) -> usize {
+        self.selections[self.active.index()]
+    }
+
+    fn set_selected(&mut self, value: usize) {
+        let len = self.filtered_items().len();
+        self.selections[self.active.index()] = value.min(len.saturating_sub(1));
+    }
+
+    fn trim_selection(&mut self) {
+        self.set_selected(self.selected());
+    }
+
+    fn set_active_kind(&mut self, kind: ResourceKind) {
+        if self.active == kind {
+            return;
+        }
+        // Selection is remembered per kind, so hopping between resource
+        // types no longer resets the operator's place.
+        self.active = kind;
+        self.status = format!("resource view: {}", kind.label());
+    }
+
     fn move_selection(&mut self, delta: isize) {
         let len = self.filtered_items().len();
         if len == 0 {
-            self.selected = 0;
+            self.set_selected(0);
             return;
         }
         let last = len as isize - 1;
-        self.selected = (self.selected as isize + delta).clamp(0, last) as usize;
+        let next = (self.selected() as isize + delta).clamp(0, last) as usize;
+        self.set_selected(next);
     }
 
     fn next_resource(&mut self) {
@@ -1165,7 +1257,6 @@ impl DockerTuiApp {
             ResourceKind::Networks => ResourceKind::Volumes,
             ResourceKind::Volumes => ResourceKind::Containers,
         };
-        self.selected = 0;
         self.status = format!("resource view: {}", self.active.label());
     }
 
@@ -1176,12 +1267,14 @@ impl DockerTuiApp {
             ResourceKind::Networks => ResourceKind::Images,
             ResourceKind::Volumes => ResourceKind::Networks,
         };
-        self.selected = 0;
         self.status = format!("resource view: {}", self.active.label());
     }
 
     fn refresh_all(&mut self) {
         if let Some(service) = &self.service {
+            for kind in ResourceKind::ALL {
+                self.pending[kind.index()] = true;
+            }
             service.send(DockerCommand::ListContainers { all: true });
             service.send(DockerCommand::ListImages);
             service.send(DockerCommand::ListNetworks);
@@ -1194,6 +1287,7 @@ impl DockerTuiApp {
 
     fn refresh_current(&mut self) {
         if let Some(service) = &self.service {
+            self.pending[self.active.index()] = true;
             match self.active {
                 ResourceKind::Containers => {
                     service.send(DockerCommand::ListContainers { all: true })
@@ -1209,21 +1303,35 @@ impl DockerTuiApp {
     }
 
     fn inspect_selected(&mut self) {
-        match self.selected_item() {
-            Some(ResourceItem::Container(container)) => {
-                if let Some(service) = &self.service {
-                    service.send(DockerCommand::InspectContainer {
-                        id: container.id.clone(),
-                    });
-                    self.status = format!("loading inspect summary for {}", container.name);
-                } else {
-                    self.status = format!("fixture inspect: {}", container.name);
-                }
+        let Some(item) = self.selected_item() else {
+            self.status = "nothing selected".to_string();
+            return;
+        };
+        // The viewer opens immediately with the list metadata; a live
+        // container inspect upgrades the content when the service answers.
+        self.inspect_preview.clear();
+        for line in item.metadata_lines() {
+            self.inspect_preview.push_line(line);
+        }
+        self.inspect_scroll = 0;
+        self.inspect_target = Some(item.safe_label());
+        self.overlay = Overlay::InspectViewer;
+        if let ResourceItem::Container(container) = &item {
+            if let Some(service) = &self.service {
+                service.send(DockerCommand::InspectContainer {
+                    id: container.id.clone(),
+                });
+                self.inspect_preview
+                    .push_line("loading full inspect from DockerService\u{2026}".to_string());
+                self.status = format!(
+                    "loading inspect for {}; raw env and mounts stay redacted",
+                    container.name
+                );
+                return;
             }
-            Some(item) => {
-                self.status = format!("metadata preview: {}", item.safe_label());
-            }
-            None => self.status = "nothing selected".to_string(),
+            self.status = format!("fixture inspect: {}", container.name);
+        } else {
+            self.status = format!("inspect: {}", item.safe_label());
         }
     }
 
@@ -1240,9 +1348,14 @@ impl DockerTuiApp {
             });
             self.logs.clear();
             self.active_log_container = Some(container.name.clone());
-            self.status = format!("following logs for {}; cancel with c", container.name);
+            self.open_log_viewer();
+            self.status = format!(
+                "following logs for {}; Esc closes viewer, c stops stream",
+                container.name
+            );
         } else {
             self.active_log_container = Some(container.name.clone());
+            self.open_log_viewer();
             self.status = format!("fixture logs shown for {}", container.name);
         }
     }
@@ -1761,9 +1874,132 @@ impl DockerTuiApp {
     }
 
     fn show_help(&mut self) {
-        self.return_mode = self.mode;
-        self.mode = Mode::Help;
-        self.status = "help open".to_string();
+        self.overlay = Overlay::Help;
+        self.status = "help open; any key closes".to_string();
+    }
+
+    fn request_quit(&mut self) {
+        if self.operation_plan.is_some() || self.streams_active() {
+            self.overlay = Overlay::ConfirmQuit;
+            self.status =
+                "quit? streams or plans are active: y quits, any other key stays".to_string();
+            return;
+        }
+        self.should_quit = true;
+    }
+
+    fn streams_active(&self) -> bool {
+        self.active_log_container.is_some() || self.active_stats_container.is_some()
+    }
+
+    fn handle_confirm_quit_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter => {
+                self.should_quit = true;
+            }
+            _ => {
+                self.overlay = Overlay::None;
+                self.status = "quit cancelled".to_string();
+            }
+        }
+    }
+
+    fn active_work_summary(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(container) = &self.active_log_container {
+            parts.push(format!("log stream {container}"));
+        }
+        if let Some(container) = &self.active_stats_container {
+            parts.push(format!("stats stream {container}"));
+        }
+        if let Some(plan) = &self.operation_plan {
+            parts.push(format!(
+                "{} plan on {}",
+                plan.kind.label(),
+                plan.target_label
+            ));
+        }
+        if parts.is_empty() {
+            "no active streams or plans".to_string()
+        } else {
+            parts.join(", ")
+        }
+    }
+
+    fn open_log_viewer(&mut self) {
+        self.overlay = Overlay::LogViewer;
+        self.log_follow = true;
+        self.log_scroll = 0;
+    }
+
+    fn handle_log_viewer_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.overlay = Overlay::None;
+                self.status = if self.active_log_container.is_some() {
+                    "log viewer closed; stream keeps running (c stops it)".to_string()
+                } else {
+                    "log viewer closed".to_string()
+                };
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.log_follow = false;
+                self.log_scroll = self.log_scroll.saturating_add(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.log_scroll = self.log_scroll.saturating_sub(1);
+                if self.log_scroll == 0 {
+                    self.log_follow = true;
+                }
+            }
+            KeyCode::PageUp => {
+                self.log_follow = false;
+                self.log_scroll = self.log_scroll.saturating_add(10);
+            }
+            KeyCode::PageDown => {
+                self.log_scroll = self.log_scroll.saturating_sub(10);
+                if self.log_scroll == 0 {
+                    self.log_follow = true;
+                }
+            }
+            KeyCode::Home | KeyCode::Char('g') => {
+                self.log_follow = false;
+                self.log_scroll = self.logs.len();
+            }
+            KeyCode::End | KeyCode::Char('G') => {
+                self.log_follow = true;
+                self.log_scroll = 0;
+            }
+            KeyCode::Char('f') => {
+                self.log_follow = !self.log_follow;
+                if self.log_follow {
+                    self.log_scroll = 0;
+                }
+                self.status = format!("log follow {}", if self.log_follow { "on" } else { "off" });
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_inspect_viewer_key(&mut self, key: KeyEvent) {
+        let max_scroll = self.inspect_preview.len().saturating_sub(1);
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.overlay = Overlay::None;
+                self.status = "inspect viewer closed".to_string();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.inspect_scroll = self.inspect_scroll.saturating_sub(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.inspect_scroll = (self.inspect_scroll + 1).min(max_scroll);
+            }
+            KeyCode::PageUp => self.inspect_scroll = self.inspect_scroll.saturating_sub(10),
+            KeyCode::PageDown => self.inspect_scroll = (self.inspect_scroll + 10).min(max_scroll),
+            KeyCode::Home | KeyCode::Char('g') => self.inspect_scroll = 0,
+            KeyCode::End | KeyCode::Char('G') => self.inspect_scroll = max_scroll,
+            _ => {}
+        }
     }
 
     fn filtered_items(&self) -> Vec<ResourceItem> {
@@ -1804,7 +2040,7 @@ impl DockerTuiApp {
     }
 
     fn selected_item(&self) -> Option<ResourceItem> {
-        self.filtered_items().get(self.selected).cloned()
+        self.filtered_items().get(self.selected()).cloned()
     }
 
     fn selected_container(&self) -> Option<ContainerView> {
@@ -1925,10 +2161,12 @@ impl DockerTuiApp {
         let vertical = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),
+                // Header and status each carry two content rows (title+tabs,
+                // status+hints) on top of their borders.
+                Constraint::Length(4),
                 Constraint::Min(12),
                 Constraint::Length(8),
-                Constraint::Length(3),
+                Constraint::Length(4),
             ])
             .split(area);
 
@@ -1944,27 +2182,23 @@ impl DockerTuiApp {
         frame.render_widget(self.stream_panel(), vertical[2]);
         frame.render_widget(self.status_panel(), vertical[3]);
 
-        match self.mode {
-            Mode::Help => self.draw_help(frame, area),
-            Mode::Error => self.draw_error(frame, area),
-            Mode::Exec => self.draw_exec_banner(frame, area),
-            Mode::Browser | Mode::Filter => {}
+        if self.mode == Mode::Exec {
+            self.draw_exec_banner(frame, area);
+        }
+        match self.overlay {
+            Overlay::None => {}
+            Overlay::Help => self.draw_help(frame, area),
+            Overlay::LogViewer => self.draw_log_viewer(frame, area),
+            Overlay::InspectViewer => self.draw_inspect_viewer(frame, area),
+            Overlay::ConfirmQuit => self.draw_confirm_quit(frame, area),
+        }
+        if let Some(error) = &self.error_banner {
+            self.draw_error_banner(frame, area, error);
         }
     }
 
     fn header(&self) -> Paragraph<'_> {
         let source = format!("{:?}", self.source).to_lowercase();
-        let tabs = ResourceKind::ALL
-            .iter()
-            .map(|kind| {
-                if *kind == self.active {
-                    format!("[{}]", kind.label())
-                } else {
-                    kind.label().to_string()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
         Paragraph::new(vec![
             Line::from(vec![
                 Span::styled(
@@ -1978,7 +2212,7 @@ impl DockerTuiApp {
             ]),
             Line::from(format!(
                 "{}  source={} kind={} purpose={} readonly={} restore={} filter={}",
-                tabs,
+                self.header_tabs(),
                 source,
                 self.connection_kind,
                 self.purpose,
@@ -1990,18 +2224,39 @@ impl DockerTuiApp {
         .block(Block::default().borders(Borders::ALL))
     }
 
+    /// Tab strip with number hotkeys and per-kind loading markers.
+    fn header_tabs(&self) -> String {
+        ResourceKind::ALL
+            .iter()
+            .map(|kind| {
+                let pending_mark = if self.pending[kind.index()] {
+                    "\u{27f3}"
+                } else {
+                    ""
+                };
+                let label = format!("{}:{}{}", kind.hotkey(), kind.label(), pending_mark);
+                if *kind == self.active {
+                    format!("[{label}]")
+                } else {
+                    label
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     fn resource_list(&self, area: Rect) -> Paragraph<'_> {
         let items = self.filtered_items();
         let visible = area.height.saturating_sub(2).max(1) as usize;
-        let start = window_start(self.selected, visible, items.len());
+        let start = window_start(self.selected(), visible, items.len());
         let lines = items
             .iter()
             .enumerate()
             .skip(start)
             .take(visible)
             .map(|(idx, item)| {
-                let marker = if idx == self.selected { ">" } else { " " };
-                let style = if idx == self.selected {
+                let marker = if idx == self.selected() { ">" } else { " " };
+                let style = if idx == self.selected() {
                     Style::default()
                         .fg(Color::Black)
                         .bg(Color::Cyan)
@@ -2015,17 +2270,21 @@ impl DockerTuiApp {
                 ))
             })
             .collect::<Vec<_>>();
-        Paragraph::new(if lines.is_empty() {
-            vec![Line::from("No resources loaded. Press r to refresh.")]
-        } else {
+        Paragraph::new(if !lines.is_empty() {
             lines
+        } else if self.pending[self.active.index()] {
+            vec![Line::from("loading\u{2026}")]
+        } else {
+            vec![Line::from(
+                "Nothing here yet. Press r to refresh, / to filter, 1-4 to switch kinds.",
+            )]
         })
         .block(
             Block::default()
                 .title(format!(
                     " {} ({}/{}) ",
                     self.active.label(),
-                    self.selected.saturating_add(1).min(items.len()),
+                    self.selected().saturating_add(1).min(items.len()),
                     items.len()
                 ))
                 .borders(Borders::ALL),
@@ -2035,37 +2294,11 @@ impl DockerTuiApp {
 
     fn detail_panel(&self) -> Paragraph<'_> {
         let mut lines = match self.selected_item() {
-            Some(ResourceItem::Container(container)) => vec![
-                Line::from(format!("container: {}", container.name)),
-                Line::from(format!("id: {}", container.id)),
-                Line::from(format!("image: {}", container.image)),
-                Line::from(format!(
-                    "state: {}  status: {}",
-                    container.state, container.status
-                )),
-                Line::from(format!("ports: {}", empty_dash(&container.ports))),
-                Line::from(format!("created: {}", empty_dash(&container.created))),
-            ],
-            Some(ResourceItem::Image(image)) => vec![
-                Line::from(format!("image: {}", image.display_tag())),
-                Line::from(format!("id: {}", image.id)),
-                Line::from(format!("size: {}", format_size(image.size))),
-                Line::from(format!("created: {}", empty_dash(&image.created))),
-            ],
-            Some(ResourceItem::Network(network)) => vec![
-                Line::from(format!("network: {}", network.name)),
-                Line::from(format!("id: {}", network.id)),
-                Line::from(format!("driver: {}", network.driver)),
-                Line::from(format!("scope: {}", network.scope)),
-            ],
-            Some(ResourceItem::Volume(volume)) => vec![
-                Line::from(format!("volume: {}", volume.name)),
-                Line::from(format!("driver: {}", volume.driver)),
-                Line::from(format!(
-                    "mountpoint: {}",
-                    redacted_mountpoint(&volume.mountpoint)
-                )),
-            ],
+            Some(item) => item
+                .metadata_lines()
+                .into_iter()
+                .map(Line::from)
+                .collect::<Vec<_>>(),
             None => vec![Line::from("Select a resource to inspect metadata.")],
         };
 
@@ -2149,15 +2382,21 @@ impl DockerTuiApp {
     }
 
     fn status_panel(&self) -> Paragraph<'_> {
-        let text = vec![Line::from(format!(
-            "{} | mode={} | logs {} lines/{} dropped | exec {} lines/{} dropped",
-            self.primary_status(),
-            mode_label(self.mode),
-            self.logs.len(),
-            self.logs.dropped_lines,
-            self.exec_output.len(),
-            self.exec_output.dropped_lines
-        ))];
+        let text = vec![
+            Line::from(format!(
+                "{} | mode={} | logs {} lines/{} dropped | exec {} lines/{} dropped",
+                self.primary_status(),
+                mode_label(self.mode),
+                self.logs.len(),
+                self.logs.dropped_lines,
+                self.exec_output.len(),
+                self.exec_output.dropped_lines
+            )),
+            Line::from(Span::styled(
+                self.hints_line(),
+                Style::default().fg(Color::DarkGray),
+            )),
+        ];
         let block = Block::default().title(" Status ").borders(Borders::ALL);
         Paragraph::new(text).block(block)
     }
@@ -2174,20 +2413,62 @@ impl DockerTuiApp {
             .unwrap_or_else(|| self.status.clone())
     }
 
+    /// Mode-aware persistent key-hint footer; sized to fit a 120-column
+    /// terminal.
+    fn hints_line(&self) -> String {
+        match self.mode {
+            Mode::Filter => format!(
+                "filter: {}\u{258f} Enter apply \u{b7} Esc clear \u{b7} {} match(es)",
+                self.filter,
+                self.filtered_items().len()
+            ),
+            Mode::Exec => "exec: stdin forwarded \u{b7} Ctrl+] then q to detach".to_string(),
+            Mode::Browser => BROWSER_HINTS.to_string(),
+        }
+    }
+
     fn draw_help(&self, frame: &mut Frame, area: Rect) {
-        let popup = centered_rect(70, 56, area);
+        let popup = centered_rect(78, 84, area);
         frame.render_widget(Clear, popup);
         let help = vec![
-            Line::from("Docker operations TUI"),
-            Line::from("Tab / Shift+Tab: switch resource type"),
-            Line::from("j/k: move  /: filter  r: refresh  i: inspect"),
-            Line::from("l: follow logs  t: follow stats  c: cancel streams"),
-            Line::from("a: share bounded current-view context"),
-            Line::from("pending agent operation: y stage plan  n deny"),
-            Line::from("p: start  s: stop  R: restart  x: remove  e: exec shell"),
-            Line::from("y: confirm plan  Esc: cancel plan  q: quit"),
-            Line::from("Exec mode forwards keys only after explicit confirmation."),
-            Line::from("Exec escape: Ctrl+] then q"),
+            Line::from(Span::styled(
+                "Navigation",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from("1-4 jump to containers/images/networks/volumes (Tab cycles)"),
+            Line::from(
+                "j/k or arrows move \u{b7} PgUp/PgDn page \u{b7} g/G home/end \u{b7} selection is kept per kind",
+            ),
+            Line::from("/ filter (live, Esc clears) \u{b7} r refresh"),
+            Line::from(Span::styled(
+                "Inspect & streams",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from("i/Enter: metadata or container inspect in a full-screen scrollable viewer"),
+            Line::from(
+                "l: container logs in the viewer (j/k PgUp/PgDn scroll, f follow, Esc closes; stream keeps running)",
+            ),
+            Line::from("t: stats stream \u{b7} c: cancel all streams"),
+            Line::from(Span::styled(
+                "Operations (staged plans, y confirms)",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from(
+                "p start \u{b7} s stop (y twice) \u{b7} R restart (y twice) \u{b7} x remove (y twice) \u{b7} e exec shell",
+            ),
+            Line::from(
+                "y confirm staged plan \u{b7} Esc cancel plan \u{b7} readonly launches block at confirm",
+            ),
+            Line::from(
+                "pending agent operation: y stages it onto the existing plan flow, n denies",
+            ),
+            Line::from("a: share bounded current-view context with an external agent"),
+            Line::from(Span::styled(
+                "Sessions",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from("q: quit (asks for confirmation while streams or plans are active)"),
+            Line::from("exec escape: Ctrl+] then q \u{b7} any key closes help"),
         ];
         frame.render_widget(
             Paragraph::new(help)
@@ -2198,21 +2479,123 @@ impl DockerTuiApp {
         );
     }
 
-    fn draw_error(&self, frame: &mut Frame, area: Rect) {
-        let popup = centered_rect(70, 40, area);
+    fn draw_log_viewer(&self, frame: &mut Frame, area: Rect) {
+        let popup = centered_rect(88, 82, area);
+        frame.render_widget(Clear, popup);
+        let visible = popup.height.saturating_sub(2).max(1) as usize;
+        let total = self.logs.len();
+        let body: Vec<Line> = if total == 0 {
+            vec![Line::from("no log lines retained for this stream")]
+        } else if self.log_follow {
+            self.logs
+                .tail(visible)
+                .into_iter()
+                .map(Line::from)
+                .collect()
+        } else {
+            let end = total.saturating_sub(self.log_scroll);
+            let start = end.saturating_sub(visible);
+            self.logs
+                .range(start, end)
+                .into_iter()
+                .map(Line::from)
+                .collect()
+        };
+        let follow_label = if self.log_follow {
+            "follow=f on"
+        } else {
+            "follow=f off"
+        };
+        frame.render_widget(
+            Paragraph::new(body)
+                .block(Block::default()
+                    .title(format!(
+                        " Logs \u{b7} {} \u{b7} {} lines retained \u{b7} j/k PgUp/PgDn scroll \u{b7} {} \u{b7} Esc close ",
+                        self.active_log_container.as_deref().unwrap_or("no active stream"),
+                        total,
+                        follow_label
+                    ))
+                    .borders(Borders::ALL)),
+            popup,
+        );
+    }
+
+    fn draw_inspect_viewer(&self, frame: &mut Frame, area: Rect) {
+        let popup = centered_rect(84, 82, area);
+        frame.render_widget(Clear, popup);
+        let visible = popup.height.saturating_sub(2).max(1) as usize;
+        let total = self.inspect_preview.len();
+        let body: Vec<Line> = if total == 0 {
+            vec![Line::from(
+                "nothing inspected yet; press i/Enter on a resource",
+            )]
+        } else {
+            let start = self.inspect_scroll.min(total.saturating_sub(1));
+            self.inspect_preview
+                .range(start, start + visible)
+                .into_iter()
+                .map(Line::from)
+                .collect()
+        };
+        frame.render_widget(
+            Paragraph::new(body)
+                .block(Block::default()
+                    .title(format!(
+                        " Inspect \u{b7} {} \u{b7} line {}/{} \u{b7} j/k PgUp/PgDn scroll \u{b7} Esc close ",
+                        self.inspect_target.as_deref().unwrap_or("no selection"),
+                        (self.inspect_scroll + 1).min(total.max(1)),
+                        total
+                    ))
+                    .borders(Borders::ALL)),
+            popup,
+        );
+    }
+
+    fn draw_confirm_quit(&self, frame: &mut Frame, area: Rect) {
+        let popup = centered_rect(56, 22, area);
         frame.render_widget(Clear, popup);
         frame.render_widget(
             Paragraph::new(vec![
                 Line::from(Span::styled(
-                    "Docker target error",
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    "Quit with active work?",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
                 )),
-                Line::from(self.status.clone()),
-                Line::from("Press any key to return to the browser."),
+                Line::from(self.active_work_summary()),
+                Line::from("y/Enter: quit \u{b7} any other key: stay"),
             ])
-            .block(Block::default().title(" Error ").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(" Confirm Quit ")
+                    .borders(Borders::ALL),
+            )
             .wrap(Wrap { trim: false }),
             popup,
+        );
+    }
+
+    fn draw_error_banner(&self, frame: &mut Frame, area: Rect, error: &str) {
+        let banner = Rect {
+            x: area.x + 1,
+            y: area.height.saturating_sub(6),
+            width: area.width.saturating_sub(2),
+            height: 3,
+        };
+        frame.render_widget(Clear, banner);
+        frame.render_widget(
+            Paragraph::new(vec![Line::from(Span::styled(
+                safe_error_summary(error),
+                Style::default().fg(Color::Red),
+            ))])
+            .block(
+                Block::default()
+                    .title(" Error (any key acknowledges) ")
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(Color::Red)),
+            )
+            .wrap(Wrap { trim: false }),
+            banner,
         );
     }
 
@@ -2298,15 +2681,39 @@ impl BoundedLines {
             .rev()
             .collect()
     }
+
+    fn range(&self, start: usize, end: usize) -> Vec<String> {
+        self.lines
+            .iter()
+            .skip(start)
+            .take(end.saturating_sub(start))
+            .cloned()
+            .collect()
+    }
 }
 
 impl ResourceKind {
+    const COUNT: usize = 4;
+
     const ALL: [ResourceKind; 4] = [
         ResourceKind::Containers,
         ResourceKind::Images,
         ResourceKind::Networks,
         ResourceKind::Volumes,
     ];
+
+    fn index(self) -> usize {
+        Self::ALL.iter().position(|kind| *kind == self).unwrap_or(0)
+    }
+
+    fn hotkey(self) -> &'static str {
+        match self {
+            ResourceKind::Containers => "1",
+            ResourceKind::Images => "2",
+            ResourceKind::Networks => "3",
+            ResourceKind::Volumes => "4",
+        }
+    }
 
     fn label(self) -> &'static str {
         match self {
@@ -2319,6 +2726,38 @@ impl ResourceKind {
 }
 
 impl ResourceItem {
+    /// Detail/inspect metadata shown in the details panel and as the initial
+    /// content of the full-screen inspect viewer.
+    fn metadata_lines(&self) -> Vec<String> {
+        match self {
+            ResourceItem::Container(container) => vec![
+                format!("container: {}", container.name),
+                format!("id: {}", container.id),
+                format!("image: {}", container.image),
+                format!("state: {}  status: {}", container.state, container.status),
+                format!("ports: {}", empty_dash(&container.ports)),
+                format!("created: {}", empty_dash(&container.created)),
+            ],
+            ResourceItem::Image(image) => vec![
+                format!("image: {}", image.display_tag()),
+                format!("id: {}", image.id),
+                format!("size: {}", format_size(image.size)),
+                format!("created: {}", empty_dash(&image.created)),
+            ],
+            ResourceItem::Network(network) => vec![
+                format!("network: {}", network.name),
+                format!("id: {}", network.id),
+                format!("driver: {}", network.driver),
+                format!("scope: {}", network.scope),
+            ],
+            ResourceItem::Volume(volume) => vec![
+                format!("volume: {}", volume.name),
+                format!("driver: {}", volume.driver),
+                format!("mountpoint: {}", redacted_mountpoint(&volume.mountpoint)),
+            ],
+        }
+    }
+
     fn list_label(&self) -> String {
         match self {
             ResourceItem::Container(container) => format!(
@@ -2609,10 +3048,47 @@ fn mode_label(mode: Mode) -> &'static str {
     match mode {
         Mode::Browser => "browser",
         Mode::Filter => "filter",
-        Mode::Help => "help",
-        Mode::Error => "error",
         Mode::Exec => "exec",
     }
+}
+
+/// Renders a bounded, whitelisted subset of the container inspect payload.
+/// Raw environment, mounts, and host config are deliberately withheld.
+fn inspect_preview_lines(inspect: &bollard::models::ContainerInspectResponse) -> Vec<String> {
+    let state_status = inspect
+        .state
+        .as_ref()
+        .and_then(|state| state.status)
+        .map(|status| status.to_string())
+        .unwrap_or_else(|| "-".to_string());
+    let image = inspect
+        .config
+        .as_ref()
+        .and_then(|config| config.image.clone())
+        .or_else(|| inspect.image.clone())
+        .unwrap_or_else(|| "-".to_string());
+    vec![
+        format!(
+            "name: {}",
+            inspect
+                .name
+                .as_deref()
+                .unwrap_or("-")
+                .trim_start_matches('/')
+        ),
+        format!("id: {}", inspect.id.as_deref().unwrap_or("-")),
+        format!("image: {image}"),
+        format!("state: {state_status}"),
+        format!("platform: {}", inspect.platform.as_deref().unwrap_or("-")),
+        format!(
+            "restart count: {}",
+            inspect
+                .restart_count
+                .map(|count| count.to_string())
+                .unwrap_or_else(|| "-".to_string())
+        ),
+        "raw env, mounts, and host config stay redacted".to_string(),
+    ]
 }
 
 fn format_size(bytes: u64) -> String {
@@ -2962,9 +3438,176 @@ mod tests {
     fn uppercase_a_is_not_an_operation_shortcut() {
         let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
         app.handle_key(KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE));
-        assert!(app.status.contains("a share context"));
+        // Uppercase A has no docker binding; it falls through to the
+        // persistent key-hint footer without staging or denying anything.
+        assert!(app.status.contains("a share"));
         assert!(!app.status.contains("assist"));
         assert!(!app.status.contains("poll"));
+        assert!(app.operation_request.is_none());
+        assert!(app.operation_plan.is_none());
+    }
+
+    fn press(app: &mut DockerTuiApp, code: KeyCode) {
+        app.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
+    }
+
+    fn type_text(app: &mut DockerTuiApp, text: &str) {
+        for ch in text.chars() {
+            app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+        }
+    }
+
+    #[test]
+    fn number_keys_jump_resource_kinds_and_keep_selection() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::Char('2'));
+        assert_eq!(app.active, ResourceKind::Images);
+        press(&mut app, KeyCode::Down);
+        let image_selection = app.selected();
+        press(&mut app, KeyCode::Char('1'));
+        assert_eq!(app.active, ResourceKind::Containers);
+        // Per-kind selection memory: returning to images keeps the row.
+        press(&mut app, KeyCode::Char('2'));
+        assert_eq!(app.selected(), image_selection);
+    }
+
+    #[test]
+    fn header_tabs_show_hotkeys_and_pending_markers() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        let tabs = app.header_tabs();
+        assert!(tabs.contains("1:containers"));
+        assert!(tabs.contains("2:images"));
+        assert!(tabs.starts_with("[1:containers]"));
+        app.pending[ResourceKind::Images.index()] = true;
+        assert!(app.header_tabs().contains("2:images\u{27f3}"));
+        press(&mut app, KeyCode::Char('2'));
+        assert!(app.header_tabs().contains("[2:images\u{27f3}]"));
+    }
+
+    #[test]
+    fn log_viewer_scrolls_pauses_and_closes() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::Char('l'));
+        assert_eq!(app.overlay, Overlay::LogViewer);
+        assert!(app.log_follow);
+        let total = app.logs.len();
+        assert!(total > 0, "fixture logs seed the viewer");
+        press(&mut app, KeyCode::Up);
+        assert!(!app.log_follow);
+        assert_eq!(app.log_scroll, 1);
+        press(&mut app, KeyCode::End);
+        assert!(app.log_follow);
+        assert_eq!(app.log_scroll, 0);
+        press(&mut app, KeyCode::Char('f'));
+        assert!(!app.log_follow);
+        app.handle_key(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE));
+        assert!(app.log_follow);
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.overlay, Overlay::None);
+        assert!(
+            app.active_log_container.is_some(),
+            "closing the viewer keeps the stream"
+        );
+        assert_eq!(app.logs.len(), total);
+    }
+
+    #[test]
+    fn inspect_opens_viewer_and_inspect_loaded_upgrades_content() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::Char('i'));
+        assert_eq!(app.overlay, Overlay::InspectViewer);
+        assert!(app.status.contains("fixture inspect"));
+        assert!(app.inspect_preview.len() > 0);
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.overlay, Overlay::None);
+
+        let inspect = bollard::models::ContainerInspectResponse {
+            name: Some("/web".to_string()),
+            id: Some("abc123def456".to_string()),
+            state: Some(bollard::models::ContainerState {
+                status: Some(bollard::models::ContainerStateStatusEnum::RUNNING),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        app.handle_service_event(DockerEvent::InspectLoaded(Box::new(inspect)));
+        assert_eq!(app.overlay, Overlay::InspectViewer);
+        let preview = app
+            .inspect_preview
+            .range(0, app.inspect_preview.len())
+            .join("\n");
+        assert!(preview.contains("name: web"));
+        assert!(preview.contains("state: running"));
+        assert!(
+            preview.contains("redacted"),
+            "raw env and mounts stay withheld"
+        );
+    }
+
+    #[test]
+    fn background_error_becomes_banner_not_modal() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        app.handle_service_event(DockerEvent::Error(
+            "stats stream failed: connection refused".to_string(),
+        ));
+        assert_eq!(app.mode, Mode::Browser, "errors must not hijack the mode");
+        assert!(app.error_banner.is_some());
+        // Any key acknowledges the banner while keeping its normal meaning.
+        press(&mut app, KeyCode::Char('j'));
+        assert!(app.error_banner.is_none());
+        assert_eq!(app.mode, Mode::Browser);
+        assert_eq!(app.selected(), 1);
+    }
+
+    #[test]
+    fn quit_with_active_stream_requires_confirmation() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::Char('l'));
+        press(&mut app, KeyCode::Esc);
+        press(&mut app, KeyCode::Char('q'));
+        assert_eq!(app.overlay, Overlay::ConfirmQuit);
+        assert!(!app.should_quit);
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.overlay, Overlay::None);
+        assert!(!app.should_quit);
+        press(&mut app, KeyCode::Char('q'));
+        press(&mut app, KeyCode::Char('y'));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn page_keys_move_selection() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::PageDown);
+        let len = app.filtered_items().len();
+        assert_eq!(app.selected(), len.saturating_sub(1));
+        press(&mut app, KeyCode::PageUp);
+        assert_eq!(app.selected(), 0);
+    }
+
+    #[test]
+    fn help_overlay_closes_on_any_key() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::Char('?'));
+        assert_eq!(app.overlay, Overlay::Help);
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(app.overlay, Overlay::None);
+        assert!(app.status.contains("help closed"));
+    }
+
+    #[test]
+    fn filter_hint_shows_cursor_and_match_count() {
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        press(&mut app, KeyCode::Char('/'));
+        assert_eq!(app.mode, Mode::Filter);
+        type_text(&mut app, "api");
+        let hints = app.hints_line();
+        assert!(hints.contains("api"));
+        assert!(hints.contains('\u{258f}'), "filter input shows the cursor");
+        assert!(hints.contains("1 match(es)"));
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.mode, Mode::Browser);
+        assert!(app.status.contains("1 matches"));
     }
 
     fn temp_context_share_store() -> AgentContextShareStore {
