@@ -162,7 +162,7 @@ default_timeout_ms = 30000
 declared = true
 interactive_execute = false
 session_purposes = []
-note = "Container identity and action are revalidated; exec/attach remain deferred."
+note = "Container identity and action are revalidated; exec/attach run as bounded live sessions."
 capability_wide_allowed = true
 
 [capabilities.authorization.approval_schema]
@@ -198,7 +198,7 @@ default_timeout_ms = 30000
 declared = true
 interactive_execute = false
 session_purposes = []
-note = "Container identity and action are revalidated; exec/attach remain deferred."
+note = "Container identity and action are revalidated; exec/attach run as bounded live sessions."
 capability_wide_allowed = true
 
 [capabilities.authorization.approval_schema]
@@ -1550,7 +1550,7 @@ default_timeout_ms = 30000
 declared = true
 interactive_execute = false
 session_purposes = []
-note = "Container identity and action are revalidated; exec/attach remain deferred."
+note = "Container identity and action are revalidated; exec/attach run as bounded live sessions."
 capability_wide_allowed = true
 
 [capabilities.authorization.approval_schema]

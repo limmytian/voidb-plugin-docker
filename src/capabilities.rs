@@ -553,7 +553,7 @@ fn docker_authorization_metadata(id: &str) -> voidb_core::CapabilityAuthorizatio
     match schema {
         Some(fields) => metadata
             .with_note(
-                "Container identity and action are revalidated; exec/attach remain deferred.",
+                "Container identity and action are revalidated; exec/attach run as bounded live sessions.",
             )
             .with_approval_schema(voidb_core::CapabilityApprovalSchema::v1(fields)),
         None => metadata,

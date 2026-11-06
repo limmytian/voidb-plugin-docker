@@ -29,30 +29,30 @@ Independent process plugin for [VoidB](https://github.com/limmytian/voidb) to co
 
 ## Usage & Operational Modes
 
-When installed, `voidb-cli` automatically discovers this plugin and provides seamless transparent dispatch:
+When installed, `vb` automatically discovers this plugin and provides seamless transparent dispatch:
 
 ### 1. Human Operations (CLI & TUI)
 
 ```bash
 # Connectivity test
-voidb-cli docker test --profile local-docker
+vb docker test --profile local-docker
 
 # Launch standalone interactive fullscreen TUI
-voidb-cli docker tui --profile local-docker
+vb docker tui --profile local-docker
 
 # Inspect containers, images, volumes, networks
-voidb-cli docker ps --profile local-docker
-voidb-cli docker ps -a --profile local-docker
-voidb-cli docker images --profile local-docker
-voidb-cli docker volumes --profile local-docker
-voidb-cli docker networks --profile local-docker
+vb docker ps --profile local-docker
+vb docker ps -a --profile local-docker
+vb docker images --profile local-docker
+vb docker volumes --profile local-docker
+vb docker networks --profile local-docker
 ```
 
 ### 2. Machine Communication (AI Agents & JSON-RPC)
 
 ```bash
-# Run the stdio-jsonrpc server directly or via voidb-cli
-voidb-cli docker serve
+# Run the stdio-jsonrpc server directly or via vb
+vb docker serve
 # Or directly run the binary:
 ./bin/voidb-plugin-docker serve
 ```
@@ -71,8 +71,8 @@ cp -r plugin.toml bin schemas "$HOME/Library/Application Support/voidb/plugins/d
 Verify discovery via `voidb`:
 
 ```bash
-voidb-cli plugin list
-voidb-cli docker --help
+vb plugin list
+vb docker --help
 ```
 
 ### Development & Build
