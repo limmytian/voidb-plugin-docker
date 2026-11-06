@@ -690,6 +690,13 @@ fn preflight_value(launch: &DockerTuiLaunch) -> Value {
 }
 
 fn run_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut DockerTuiApp) -> Result<()> {
+    // Startup auto-load (standalone TUI acceptance): the primary view must
+    // show live data without requiring a manual refresh key. The Connect
+    // command was already queued in the app constructor, so the service
+    // answers the list commands in order.
+    if app.service.is_some() {
+        app.refresh_all();
+    }
     terminal.draw(|frame| app.draw(frame))?;
     loop {
         let mut dirty = app.drain_service();
