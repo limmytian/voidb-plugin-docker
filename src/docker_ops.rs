@@ -108,20 +108,14 @@ pub fn create_client(config: &DockerConfig) -> Result<Docker> {
             Docker::connect_with_http(url, config.timeout, bollard::API_DEFAULT_VERSION)
                 .context(format!("Failed to connect via HTTP: {}", url))?
         }
-        DockerConnection::Tls {
-            url,
-            ca_cert: _,
-            cert: _,
-            key: _,
-        } => {
-            // bollard 0.18 doesn't have connect_with_ssl; use HTTP for now
-            // TLS support requires bollard 0.20+ or custom transport
-            Docker::connect_with_http(url, config.timeout, bollard::API_DEFAULT_VERSION).context(
-                format!(
-                    "Failed to connect via TLS: {} (TLS not yet supported, using HTTP)",
-                    url
-                ),
-            )?
+        DockerConnection::Tls { url, .. } => {
+            // Fail closed: silently downgrading a TLS-configured profile to
+            // plaintext HTTP would expose credentials and workload traffic.
+            // TLS transport requires bollard 0.20+ or a custom connector.
+            return Err(anyhow::anyhow!(
+                "Docker TLS connections are not supported by this plugin version (profile requested TLS for {url}); \
+                 use connection type Local, Socket, or Http, or upgrade the docker plugin"
+            ));
         }
     };
     Ok(docker)
