@@ -54,7 +54,6 @@ jobs:
       - name: Verify Manifest and Schema Contracts
         run: cargo run --locked --example export_contract -- --check
 
-  fixture-smoke:
     name: Fixture Smoke
     runs-on: ubuntu-latest
     steps:
