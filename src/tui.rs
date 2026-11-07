@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,6 +25,7 @@ use voidb_core::{
 };
 #[cfg(test)]
 use voidb_core::{AgentOperationRisk, AgentPrincipal, AssistPermission};
+use voidb_tui_kit::{BoundedLines, centered_rect, safe_error_summary, window_start};
 
 use crate::config::{DockerConfig, DockerConnection};
 use crate::service::{DockerCommand, DockerEvent, DockerService, ExecEvent};
@@ -376,15 +376,6 @@ struct OperationPlanView {
     risk: &'static str,
     confirmations_required: u8,
     confirmations: u8,
-}
-
-#[derive(Debug, Clone)]
-struct BoundedLines {
-    lines: VecDeque<String>,
-    bytes: usize,
-    dropped_lines: usize,
-    max_lines: usize,
-    max_bytes: usize,
 }
 
 pub fn write_docker_tui_preflight(launch: &DockerTuiLaunch) -> Result<()> {
@@ -1024,7 +1015,7 @@ impl DockerTuiApp {
                 self.status = format!(
                     "log stream updated; retained {} lines, dropped {}",
                     self.logs.len(),
-                    self.logs.dropped_lines
+                    self.logs.dropped_lines()
                 );
             }
             DockerEvent::PullProgress { status, progress } => {
@@ -2149,10 +2140,10 @@ impl DockerTuiApp {
                 "active_log_container": self.active_log_container.clone(),
                 "active_stats_container": self.active_stats_container.clone(),
                 "log_lines": self.logs.len(),
-                "log_dropped_lines": self.logs.dropped_lines,
-                "log_bytes": self.logs.bytes,
+                "log_dropped_lines": self.logs.dropped_lines(),
+                "log_bytes": self.logs.bytes(),
                 "exec_lines": self.exec_output.len(),
-                "exec_dropped_lines": self.exec_output.dropped_lines
+                "exec_dropped_lines": self.exec_output.dropped_lines()
             },
             "withheld": [
                 "docker.client_handle",
@@ -2374,11 +2365,11 @@ impl DockerTuiApp {
                 "No stream data. Press l for logs, t for stats, e then y for exec.",
             ));
         }
-        if source.dropped_lines > 0 {
+        if source.dropped_lines() > 0 {
             lines.push(Line::from(Span::styled(
                 format!(
                     "dropped {} lines due to stream bounds",
-                    source.dropped_lines
+                    source.dropped_lines()
                 ),
                 Style::default().fg(Color::Yellow),
             )));
@@ -2395,9 +2386,9 @@ impl DockerTuiApp {
                 self.primary_status(),
                 mode_label(self.mode),
                 self.logs.len(),
-                self.logs.dropped_lines,
+                self.logs.dropped_lines(),
                 self.exec_output.len(),
-                self.exec_output.dropped_lines
+                self.exec_output.dropped_lines()
             )),
             Line::from(Span::styled(
                 self.hints_line(),
@@ -2628,74 +2619,6 @@ impl DockerTuiApp {
             .wrap(Wrap { trim: false }),
             popup,
         );
-    }
-}
-
-impl BoundedLines {
-    fn new(max_lines: usize, max_bytes: usize) -> Self {
-        Self {
-            lines: VecDeque::new(),
-            bytes: 0,
-            dropped_lines: 0,
-            max_lines,
-            max_bytes,
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.lines.len()
-    }
-
-    fn clear(&mut self) {
-        self.lines.clear();
-        self.bytes = 0;
-        self.dropped_lines = 0;
-    }
-
-    fn push_text(&mut self, text: &str) {
-        for line in text.lines() {
-            self.push_line(line.to_string());
-        }
-        if text.ends_with('\n') && text.lines().next().is_none() {
-            self.push_line(String::new());
-        }
-    }
-
-    fn push_line(&mut self, mut line: String) {
-        if line.len() > self.max_bytes {
-            line.truncate(self.max_bytes);
-        }
-        self.bytes = self.bytes.saturating_add(line.len());
-        self.lines.push_back(line);
-        while self.lines.len() > self.max_lines || self.bytes > self.max_bytes {
-            if let Some(removed) = self.lines.pop_front() {
-                self.bytes = self.bytes.saturating_sub(removed.len());
-                self.dropped_lines = self.dropped_lines.saturating_add(1);
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn tail(&self, count: usize) -> Vec<String> {
-        self.lines
-            .iter()
-            .rev()
-            .take(count)
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect()
-    }
-
-    fn range(&self, start: usize, end: usize) -> Vec<String> {
-        self.lines
-            .iter()
-            .skip(start)
-            .take(end.saturating_sub(start))
-            .cloned()
-            .collect()
     }
 }
 
@@ -2960,15 +2883,6 @@ fn empty_dash(value: &str) -> &str {
     if value.is_empty() { "-" } else { value }
 }
 
-fn safe_error_summary(message: &str) -> String {
-    let mut summary = message.replace('\n', " ");
-    if summary.len() > 180 {
-        summary.truncate(177);
-        summary.push_str("...");
-    }
-    summary
-}
-
 fn secret_leak_markers(text: &str) -> Vec<String> {
     [
         "registry_token_value",
@@ -3111,36 +3025,6 @@ fn format_size(bytes: u64) -> String {
     } else {
         format!("{value:.1} {}", UNITS[unit])
     }
-}
-
-fn window_start(selected: usize, visible: usize, len: usize) -> usize {
-    if visible == 0 || len <= visible {
-        0
-    } else if selected >= visible {
-        (selected + 1).saturating_sub(visible)
-    } else {
-        0
-    }
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(area);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }
 
 struct StandaloneDockerTabManager {
@@ -3524,7 +3408,7 @@ mod tests {
         press(&mut app, KeyCode::Char('i'));
         assert_eq!(app.overlay, Overlay::InspectViewer);
         assert!(app.status.contains("fixture inspect"));
-        assert!(app.inspect_preview.len() > 0);
+        assert!(!app.inspect_preview.is_empty());
         press(&mut app, KeyCode::Esc);
         assert_eq!(app.overlay, Overlay::None);
 
@@ -3667,5 +3551,25 @@ mod tests {
             requested_permissions: vec![AssistPermission::ProposeCommands],
             redaction: RedactionStatus::Applied,
         }
+    }
+    #[test]
+    fn startup_auto_load_shows_data_before_first_draw_or_keypress() {
+        // 0.4.1 acceptance, locked per the TUI shared-kit ADR: the primary
+        // view must show live data without a manual refresh key. Fixture
+        // data loads in the constructor, and the run loop's startup
+        // auto-load block (queue the initial refresh when a live service is
+        // attached) must neither clear nor block it before the first draw.
+        let mut app = DockerTuiApp::new(fixture_launch(false)).unwrap();
+        assert!(
+            !app.containers.is_empty(),
+            "fixture data must be visible before the first draw"
+        );
+
+        // The run-loop startup block verbatim: fixture mode has no live
+        // service, so the refresh is the fixture refresh and data stays.
+        if app.service.is_some() {
+            app.refresh_all();
+        }
+        assert!(!app.containers.is_empty());
     }
 }

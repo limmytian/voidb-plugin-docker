@@ -3702,6 +3702,7 @@ dependencies = [
  "uuid",
  "voidb-core",
  "voidb-process-plugin-sdk",
+ "voidb-tui-kit",
 ]
 
 [[package]]
@@ -3716,6 +3717,14 @@ dependencies = [
  "thiserror",
  "tokio",
  "voidb-core",
+]
+
+[[package]]
+name = "voidb-tui-kit"
+version = "0.1.0"
+source = "git+https://github.com/limmytian/voidb.git?rev=68e1d27ff02613e6d96ca6877a950c8b25f13863#68e1d27ff02613e6d96ca6877a950c8b25f13863"
+dependencies = [
+ "ratatui",
 ]
 
 [[package]]
