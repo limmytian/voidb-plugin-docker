@@ -111,7 +111,10 @@ pub fn create_client(config: &DockerConfig) -> Result<Docker> {
         DockerConnection::Tls { url, .. } => {
             // Fail closed: silently downgrading a TLS-configured profile to
             // plaintext HTTP would expose credentials and workload traffic.
-            // TLS transport requires bollard 0.20+ or a custom connector.
+            // bollard 0.18's connect_with_ssl takes certificate *paths* and
+            // sits behind its non-default `ssl` feature, while this profile
+            // shape stores PEM material in memory (see the README's TLS
+            // transport status note for the recorded upgrade path).
             return Err(anyhow::anyhow!(
                 "Docker TLS connections are not supported by this plugin version (profile requested TLS for {url}); \
                  use connection type Local, Socket, or Http, or upgrade the docker plugin"

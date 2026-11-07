@@ -48,6 +48,38 @@ vb docker volumes --profile local-docker
 vb docker networks --profile local-docker
 ```
 
+### TLS transport status (fail-closed design note)
+
+The profile schema accepts a `Tls` connection shape (`url`, `ca_cert`,
+`cert`, `key`) for forward compatibility, but connecting with it fails
+closed: `create_client` returns an explicit "not supported by this plugin
+version" error instead of silently downgrading a TLS-configured profile to
+plaintext HTTP. TLS-configured profiles therefore never leak credentials or
+workload traffic over an unencrypted channel; use `Local`, `Socket`, or
+`Http` connection types today.
+
+Why it is not implemented yet: the stored `ca_cert`/`cert`/`key` fields hold
+PEM material (they are classified as credential secrets and redacted
+everywhere), while bollard 0.18's `connect_with_ssl` takes certificate and
+key **paths** and its TLS support is behind the non-default `ssl` feature.
+Bridging the two means either writing PEM material to temporary files (a
+secret-hygiene regression) or implementing a custom rustls client-cert
+resolver over in-memory PEM.
+
+Upgrade path, when implemented:
+
+1. Enable bollard's `ssl` feature (`features = ["ssl"]` — rustls/ring based,
+   no OpenSSL dependency).
+2. Build the `rustls::ClientConfig` from the in-memory PEM material with a
+   custom `ServerCertVerifier`/client resolver, or extend the profile schema
+   to accept certificate *file paths* and pass them straight to
+   `connect_with_ssl`.
+3. Keep the fail-closed error for any profile whose TLS material cannot be
+   parsed — never fall back to plaintext.
+4. Re-enable the TUI connection form and the capability contract's
+   `connection.type` validation for the `Tls` variant, and cover the round
+   trip with the fixture smoke harness.
+
 ### 2. Machine Communication (AI Agents & JSON-RPC)
 
 ```bash
