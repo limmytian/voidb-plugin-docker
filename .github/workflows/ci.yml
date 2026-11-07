@@ -44,7 +44,6 @@ jobs:
 
       - name: Code Formatting Check
         run: cargo fmt --all -- --check
-        continue-on-error: true
 
       - name: Clippy Gate
         run: cargo clippy --locked --all-targets --no-deps -- -D warnings
@@ -54,3 +53,24 @@ jobs:
 
       - name: Verify Manifest and Schema Contracts
         run: cargo run --locked --example export_contract -- --check
+
+  fixture-smoke:
+    name: Fixture Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Plugin Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install System Dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libdbus-1-dev zstd
+
+      - name: Run Fixture Smoke
+        run: bash scripts/docker-fixture-smoke.sh
